@@ -1,0 +1,14 @@
+# views-standalone 独立构建根。
+# default = 产品本体 //ui/views:views 静态库 + 判据示例 //examples/*。
+# (views_examples 需 test_support 家族 [base/cc/viz test + InProcessContextFactory
+#  链], 其"嵌入方化"单独立项; 届时在此追加 //ui/views/examples:views_examples)
+group("default") {
+  # views_smoke 借 test_support 家族作最小嵌入宿主 (Chromium 树内无独立 app runner,
+  # 测试基建即事实上的嵌入方), 故 default 整组 testonly。
+  testonly = true
+  deps = [
+    "//ui/views:views",
+    "//examples/views_smoke",
+    "//examples/views_media_smoke",
+  ]
+}

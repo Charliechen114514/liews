@@ -1,0 +1,20 @@
+# Copyright 2014 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/buildflag_header.gni")
+import("//build/config/ui.gni")
+import("//mojo/features.gni")
+import("//testing/test.gni")
+
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  flags = [
+    "MOJO_USE_APPLE_CHANNEL=$mojo_use_apple_channel",
+    "MOJO_SUPPORT_LEGACY_CORE=$mojo_support_legacy_core",
+  ]
+}
+
+
+

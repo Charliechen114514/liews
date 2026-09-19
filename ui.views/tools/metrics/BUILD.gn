@@ -1,0 +1,62 @@
+# Copyright 2017 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/gclient_args.gni")
+import("//tools/json_to_struct/json_to_struct.gni")
+import("//tools/metrics/histograms/histograms_xml_files.gni")
+
+# Only include histograms_xml if we have access to dirmd data, which
+# is used to populate ownership information.
+# dirmd doesn't work in non-git checkout.
+# TODO(crbug.com/329080012): Remove this once dirmd works in non-git
+# checkouts.
+if (path_exists("//.git")) {
+  action("histograms_xml") {
+    script = "histograms/merge_xml.py"
+    output = "$root_out_dir/histograms.xml"
+    outputs = [ output ]
+    inputs = histograms_xml_files
+    args = [
+      "--output",
+      rebase_path(output, root_build_dir),
+    ]
+  }
+}
+
+copy("actions_xml") {
+  sources = [ "actions/actions.xml" ]
+  outputs = [ "$root_out_dir/actions.xml" ]
+}
+
+copy("ukm_xml") {
+  sources = [ "ukm/ukm.xml" ]
+  outputs = [ "$root_out_dir/ukm.xml" ]
+}
+
+group("metrics_metadata") {
+  deps = [
+    ":actions_xml",
+    ":ukm_xml",
+  ]
+
+  # Only include histograms_xml if we have access to dirmd data, which
+  # is used to populate ownership information. This is disabled
+  # for non-git checkouts, as dirmd doesn't work on non-git checkout.
+  # TODO(crbug.com/329080012): Remove this condition once dirmd works
+  # in non-git checkouts.
+  if (path_exists("//.git")) {
+    deps += [ ":histograms_xml" ]
+  }
+}
+
+# This group defines the isolate files needed to run metrics_python_tests.py on
+# on bots. This also tells the build system when the tests should be re-run -
+# when one of the dependent files changes.
+#
+# When adding new entries to this test suite, you can test things locally with
+# isolation using the following command:
+#
+#  tools/mb/mb.py run out/gn metrics_python_tests -- \
+#    --isolated-script-test-output=/tmp/output.json
+#

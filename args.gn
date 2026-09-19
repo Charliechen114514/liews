@@ -1,0 +1,43 @@
+# views-standalone 独立构建参数 — 产品语义默认值（权威源，tools/e2e.sh 每轮重生成目标树副本）
+# 机器特定注入（clang_base_path / rust 三件套）由 e2e.sh 追加，不进本文件。
+is_debug = false
+is_component_build = false
+symbol_level = 0
+
+# --- 产品边界（两级产品：core = views.lib / views_media = media+gpu 视频链） ---
+use_blink = false            # 无浏览器引擎
+use_dawn = false             # 无 WebGPU 服务面（chromeos 层）
+skia_use_dawn = true         # Dawn 作 Skia Graphite D3D 后端（Windows GPU 刚需）
+enable_ml_internal = false   # 无 WebNN
+enable_library_cdms = false  # 无 DRM
+dawn_use_swiftshader = false # 无软件 GL
+
+# --- 图形后端收窄 ---
+enable_swiftshader = false
+angle_enable_swiftshader = false
+angle_enable_wgpu = false
+angle_enable_vulkan = false
+angle_build_vulkan_system_info = false
+
+# --- 图像编解码 ---
+# 注: skia_use_libjpeg_turbo_{decode,encode} 是 skia standalone 构建的词汇
+# (申报在 third_party/skia/gn/skia.gni, 本闭包无人加载); chromium 集成路径下
+# jpeg-turbo 由 //skia 包装层直接 dep, 设了也是 no-op 还触发 gen 警告, 故不设。
+libyuv_disable_jpeg = true
+
+# --- 观测栈收窄（刀13 前的临时口径，服务层六边出局后可再收） ---
+enable_perfetto_unittests = false
+enable_perfetto_integration_tests = false
+enable_perfetto_benchmarks = false
+enable_perfetto_fuzzers = false
+enable_perfetto_trace_processor = true
+enable_perfetto_traceconv = false
+
+# --- webui 已裁：minify 无意义，mojo js 走 copy（免 terser/node_modules 注入） ---
+optimize_webui = false
+
+# --- 刀25（待 E2E 验证）：clang 插件出局 — 全是开发期 lint（raw-ptr/构造检查），
+#     零运行时影响。已过 gen + 编译命令验证（0 插件 flag 残留）；砍掉后官方
+#     LLVM 发行版亦可编（插件二进制只存在于 chromium 的 llvm-build 包）。
+clang_use_chrome_plugins = false
+clang_use_raw_ptr_plugin = false

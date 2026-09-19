@@ -1,0 +1,63 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package fcp.confidentialcompute;
+
+import "proto/attestation/reference_value.proto";
+
+// Initialization config for a program executor TEE container.
+// Next ID: 11
+message ProgramExecutorTeeInitializeConfig {
+  // A list of client blob IDs.
+  repeated bytes blob_ids = 9;
+
+  // The federated program to execute.
+  bytes program = 3;
+
+  // Worker bns addresses representing workers that are available to use for
+  // distributed execution of the program. If empty, the program will execute
+  // entirely within the program executor TEE.
+  repeated string worker_bns_addresses = 5;
+
+  // The ID of the attester for establishing a secure channel with workers.
+  string attester_id = 6;
+
+  // The reference values for the program executor TEE to set the noise session
+  // config.
+  oak.attestation.v1.ReferenceValues reference_values = 8;
+
+  // The address of the untrusted server to handle requests from the TEE.
+  string outgoing_server_address = 7;
+
+  // The number of calls that can be handled in parallel by the leaf executors.
+  // Non-positive values indicate no maximum.
+  int64 max_concurrent_computation_calls = 10;
+
+  reserved 1, 2, 4;
+}
+
+// Config constraints for the program executor TEE container that must be
+// validated before any of the blobs written to the container are decrypted.
+message ProgramExecutorTeeConfigConstraints {
+  // The program that the container must be configured to execute.
+  bytes program = 1;
+
+  // The worker reference values that the container must be configured to use
+  // when setting up noise protocol sessions with workers.
+  bytes worker_reference_values = 2;
+
+  reserved 3;
+}

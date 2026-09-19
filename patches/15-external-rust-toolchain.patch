@@ -1,0 +1,79 @@
+diff --git a/build/config/rust.gni b/build/config/rust.gni
+index 3b5db82..4a99461 100644
+--- a/build/config/rust.gni
++++ b/build/config/rust.gni
+@@ -430,8 +430,12 @@ rustc_wrapper_inputs = [
+   "//build/rust/gni_impl/rustc_wrapper.py",
+ ]
+ 
+-if (host_os == "win") {
+-  rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc.exe" ]
+-} else {
+-  rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc" ]
++# 刀15 (2026-09-15): 外部工具链注入——rust_sysroot_absolute 模式下树内无
++# rust-toolchain, wrapper inputs 只在 chromium 工具链模式下引用树内路径。
++if (use_chromium_rust_toolchain) {
++  if (host_os == "win") {
++    rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc.exe" ]
++  } else {
++    rustc_wrapper_inputs += [ "//third_party/rust-toolchain/bin/rustc" ]
++  }
+ }
+diff --git a/build/rust/cargo_crate.gni b/build/rust/cargo_crate.gni
+index 5ba5f98..43d4e49 100644
+--- a/build/rust/cargo_crate.gni
++++ b/build/rust/cargo_crate.gni
+@@ -468,10 +468,13 @@ template("cargo_crate") {
+         rustc_print_cfg_path,
+       ]
+ 
+-      if (host_os == "win") {
+-        inputs += [ "//third_party/rust-toolchain/bin/rustc.exe" ]
+-      } else {
+-        inputs += [ "//third_party/rust-toolchain/bin/rustc" ]
++      # 刀15: 外部工具链注入 (同 rust.gni wrapper_inputs 门控)。
++      if (use_chromium_rust_toolchain) {
++        if (host_os == "win") {
++          inputs += [ "//third_party/rust-toolchain/bin/rustc.exe" ]
++        } else {
++          inputs += [ "//third_party/rust-toolchain/bin/rustc" ]
++        }
+       }
+ 
+       build_script_target = ":${_build_script_name}($rust_macro_toolchain)"
+diff --git a/build/rust/std/BUILD.gn b/build/rust/std/BUILD.gn
+index 958f3d3..18f9583 100644
+--- a/build/rust/std/BUILD.gn
++++ b/build/rust/std/BUILD.gn
+@@ -267,10 +267,11 @@ if (toolchain_has_rust) {
+       out_libdir = rebase_path(target_out_dir, root_build_dir)
+       out_depfile = rebase_path(depfile, root_build_dir)
+ 
++      # 刀15: 外部工具链注入——inputs 跟随 rust_sysroot 实际路径。
+       if (host_os == "win") {
+-        inputs = [ "//third_party/rust-toolchain/bin/rustc.exe" ]
++        inputs = [ rust_sysroot + "/bin/rustc.exe" ]
+       } else {
+-        inputs = [ "//third_party/rust-toolchain/bin/rustc" ]
++        inputs = [ rust_sysroot + "/bin/rustc" ]
+       }
+ 
+       # For the rustc sysroot we must include even the rlibs we don't pass to
+diff --git a/build/rust/std/find_std_rlibs.py b/build/rust/std/find_std_rlibs.py
+index f35ae44..1eabec6 100644
+--- a/build/rust/std/find_std_rlibs.py
++++ b/build/rust/std/find_std_rlibs.py
+@@ -58,7 +58,12 @@ def main():
+   # (default argument for os.path.relpath) and rustlib_dir are different. The
+   # workaround is also dereference os.curdir so that the roots are the same for
+   # relative path determination.
+-  rustlib_dir = os.path.relpath(rustlib_dir, os.path.realpath(os.curdir))
++  # 刀15: 外部工具链注入——rustlib_dir 可能与构建目录不同盘, Windows 的
++  # os.path.relpath 跨盘会抛 ValueError; 此时保留绝对路径 (depfile 兼容).
++  try:
++    rustlib_dir = os.path.relpath(rustlib_dir, os.path.realpath(os.curdir))
++  except ValueError:
++    pass
+ 
+ 
+   # Copy the rlibs to a predictable location. Whilst we're doing so,

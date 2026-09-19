@@ -1,0 +1,114 @@
+# 刀16: 最小 blink/public/mojom — tokens + widget_platform (viz 冒烟链).
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("tokens") {
+  sources = [ "tokens/tokens.mojom" ]
+  shared_cpp_typemaps = [
+    {
+      types = [
+        { mojom = "blink.mojom.DocumentToken" cpp = "::blink::DocumentToken" },
+        { mojom = "blink.mojom.LocalFrameToken" cpp = "::blink::LocalFrameToken" },
+        { mojom = "blink.mojom.RemoteFrameToken" cpp = "::blink::RemoteFrameToken" },
+        { mojom = "blink.mojom.FrameToken" cpp = "::blink::FrameToken" },
+        { mojom = "blink.mojom.WorkerToken" cpp = "::blink::WorkerToken" },
+        { mojom = "blink.mojom.ViewTransitionToken" cpp = "::blink::ViewTransitionToken" },
+        { mojom = "blink.mojom.SameDocNavigationScreenshotDestinationToken" cpp = "::blink::SameDocNavigationScreenshotDestinationToken" },
+      ]
+      traits_headers = [
+        "//third_party/blink/public/common/tokens/token_mojom_traits_helper.h",
+        "//third_party/blink/public/common/tokens/tokens_mojom_traits.h",
+      ]
+      traits_public_deps = [ ":tokens_traits" ]
+    },
+  ]
+  cpp_typemaps = shared_cpp_typemaps
+  public_deps = [ "//mojo/public/mojom/base" ]
+  export_class_attribute = "BLINK_COMMON_EXPORT"
+  export_define = "BLINK_COMMON_IMPLEMENTATION=1"
+  export_header = "third_party/blink/public/common/common_export.h"
+}
+
+source_set("tokens_traits_headers") {
+  configs += [ "//third_party/blink/common:blink_common_implementation" ]
+  sources = [
+    "//third_party/blink/public/common/tokens/token_mojom_traits_helper.h",
+    "//third_party/blink/public/common/tokens/tokens_mojom_traits.h",
+  ]
+  public_deps = [
+    ":tokens_shared",
+    "//third_party/blink/public/common/tokens:tokens_headers",
+  ]
+}
+
+component("tokens_traits") {
+  configs += [ "//third_party/blink/common:blink_common_implementation" ]
+  sources = [ "//third_party/blink/common/tokens/tokens_mojom_traits.cc" ]
+  public_deps = [ ":tokens_traits_headers" ]
+}
+
+mojom("widget_platform") {
+  sources = [ "widget/platform_widget.mojom" ]
+  public_deps = [
+    "//mojo/public/mojom/base",
+    "//ui/gfx/mojom:geometry",
+  ]
+}
+
+group("mojom_modules") {}
+group("mojom_core") {}
+group("mojom_platform") {}
+
+
+# 刀16: examples 冒烟链。
+mojom("web_bluetooth_mojo_bindings") {
+  visibility = [
+    "//third_party/blink/common",
+    "//third_party/blink/public/common",
+    "//third_party/blink/public/common:headers",
+  ]
+
+
+  sources = [ "bluetooth/web_bluetooth.mojom" ]
+
+  public_deps = [
+    "//device/bluetooth/public/mojom",
+    "//mojo/public/mojom/base",
+  ]
+
+  shared_cpp_typemaps = [
+    {
+      types = [
+        {
+          mojom = "blink.mojom.WebBluetoothDeviceId"
+          cpp = "::blink::WebBluetoothDeviceId"
+        },
+      ]
+      traits_headers = [ "//third_party/blink/public/common/bluetooth/web_bluetooth_device_id_mojom_traits.h" ]
+    },
+  ]
+
+  blink_cpp_typemaps = shared_cpp_typemaps
+
+  cpp_typemaps = shared_cpp_typemaps
+
+  # The chromium variant must be linked with content and use the same export
+  # settings in component build because of the WebBluetoothDeviceId typemap
+  # inside content.
+  export_class_attribute = "BLINK_COMMON_EXPORT"
+  export_define = "BLINK_COMMON_IMPLEMENTATION=1"
+  export_header = "third_party/blink/public/common/common_export.h"
+
+  # Similarly, the blink variant must be linked with the platform component
+  # since it uses types from it in its typemaps.
+  export_class_attribute_blink = "BLINK_PLATFORM_EXPORT"
+  export_define_blink = "BLINK_PLATFORM_IMPLEMENTATION=1"
+  export_header_blink = "third_party/blink/public/platform/web_common.h"
+}
+
+group("mojom_modules_headers") {}
+
+group("mojom_platform_shared") {}
+group("mojom_modules_shared") {}
+group("mojom_modules_blink") {}
+group("mojom_core_shared") {}
+group("mojom_blink") {}

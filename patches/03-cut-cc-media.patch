@@ -1,0 +1,41 @@
+diff --git a/cc/BUILD.gn b/cc/BUILD.gn
+index 0408e87c59..3ffafae699 100644
+--- a/cc/BUILD.gn
++++ b/cc/BUILD.gn
+@@ -182,11 +182,6 @@ cc_component("cc") {
+     "layers/ui_resource_layer.h",
+     "layers/ui_resource_layer_impl.cc",
+     "layers/ui_resource_layer_impl.h",
+-    "layers/video_frame_provider.h",
+-    "layers/video_frame_provider_client_impl.cc",
+-    "layers/video_frame_provider_client_impl.h",
+-    "layers/video_layer_impl.cc",
+-    "layers/video_layer_impl.h",
+     "layers/view_transition_content_layer.cc",
+     "layers/view_transition_content_layer.h",
+     "layers/view_transition_content_layer_impl.cc",
+@@ -256,8 +251,6 @@ cc_component("cc") {
+     "metrics/submit_info.h",
+     "metrics/ukm_dropped_frames_data.cc",
+     "metrics/ukm_dropped_frames_data.h",
+-    "metrics/video_playback_roughness_reporter.cc",
+-    "metrics/video_playback_roughness_reporter.h",
+     "raster/categorized_worker_pool.cc",
+     "raster/categorized_worker_pool.h",
+     "raster/gpu_raster_buffer_provider.cc",
+@@ -517,15 +510,12 @@ cc_component("cc") {
+   deps = [
+     "//base",
+     "//build:chromeos_buildflags",
+-    "//components/metrics/dwa:dwa_builders",
+-    "//components/metrics/dwa/mojom",
+     "//components/viz/client",
+     "//device/base/synchronization",
+     "//gpu/command_buffer/client:gles2_interface",
+     "//gpu/command_buffer/client:raster_interface",
+     "//gpu/ipc/client",
+     "//gpu/vulkan:buildflags",
+-    "//media",  # For VideoLayerImpl.
+     "//mojo/public/cpp/bindings:struct_traits",
+     "//services/metrics/public/cpp:ukm_builders",
+     "//services/metrics/public/mojom",

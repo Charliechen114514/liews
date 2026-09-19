@@ -1,0 +1,641 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#include "fcp/confidentialcompute/crypto.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "absl/algorithm/container.h"
+#include "absl/cleanup/cleanup.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/functional/function_ref.h"
+#include "absl/status/status.h"
+#include "absl/status/status_builder.h"
+#include "absl/status/status_macros.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/escaping.h"
+#include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
+#include "fcp/base/digest.h"
+#include "fcp/base/monitoring.h"
+#include "fcp/confidentialcompute/cose.h"
+#include "fcp/protos/confidentialcompute/key.pb.h"
+#include "openssl/aead.h"
+#include "openssl/base.h"
+#include "openssl/bn.h"
+#include "openssl/ec.h"
+#include "openssl/ec_key.h"
+#include "openssl/ecdsa.h"
+#include "openssl/err.h"
+#include "openssl/hpke.h"
+#include "openssl/mem.h"
+#include "openssl/rand.h"
+
+namespace fcp {
+namespace confidential_compute {
+
+// A fixed random nonce, which is safe to reuse because the symmetric key is
+// never reused and we also use a nonce-misuse resistant AEAD (AES-GCM-SIV).
+constexpr absl::string_view kNonce =
+    "\x74\xDF\x8F\xD4\xBE\x34\xAF\x64\x7F\x5E\x54\xF6";
+
+// The HPKE info field.
+constexpr absl::string_view kInfo;
+
+namespace {
+
+using ::fcp::confidentialcompute::Key;
+
+// Converts an OkpKey to a Key proto.
+absl::StatusOr<Key> ConvertOkpKey(OkpKey okp_key) {
+  Key key;
+  if (okp_key.algorithm != crypto_internal::kHpkeBaseX25519Sha256Aes128Gcm ||
+      okp_key.curve != crypto_internal::kX25519) {
+    return absl::InvalidArgumentError("unsupported public key");
+  }
+  key.set_algorithm(Key::HPKE_X25519_SHA256_AES128_GCM);
+  if (absl::c_find(okp_key.key_ops, kCoseKeyOpDecrypt) !=
+      okp_key.key_ops.end()) {
+    key.set_purpose(Key::DECRYPT);
+  } else if (absl::c_find(okp_key.key_ops, kCoseKeyOpEncrypt) !=
+             okp_key.key_ops.end()) {
+    key.set_purpose(Key::ENCRYPT);
+  }
+  key.set_key_id(std::move(okp_key.key_id));
+  // Only public keys (x) are supported.
+  key.set_key_material(std::move(okp_key.x));
+  return key;
+}
+
+// Parses serialized COSE_Key decryption keys and converts them to
+// EVP_HPKE_KEYs, grouped by key ID.
+absl::flat_hash_map<std::string, std::vector<bssl::ScopedEVP_HPKE_KEY>>
+ProcessDecryptionKeys(const std::vector<absl::string_view>& decryption_keys) {
+  absl::flat_hash_map<std::string, std::vector<bssl::ScopedEVP_HPKE_KEY>>
+      processed_keys;
+  for (absl::string_view decryption_key : decryption_keys) {
+    absl::StatusOr<OkpKey> key = OkpKey::Decode(decryption_key);
+    if (!key.ok()) {
+      FCP_LOG(WARNING) << "Skipping invalid key: " << key.status();
+      continue;
+    }
+    if (key->algorithm != crypto_internal::kHpkeBaseX25519Sha256Aes128Gcm ||
+        key->curve != crypto_internal::kX25519) {
+      FCP_LOG(WARNING) << "Skipping key with unsupported algorithm or curve";
+      continue;
+    }
+    if (!key->key_ops.empty() &&
+        absl::c_find(key->key_ops, kCoseKeyOpDecrypt) == key->key_ops.end()) {
+      FCP_LOG(WARNING) << "Skipping key without decrypt key_op";
+      continue;
+    }
+
+    bssl::ScopedEVP_HPKE_KEY hpke_key;
+    if (EVP_HPKE_KEY_init(hpke_key.get(), EVP_hpke_x25519_hkdf_sha256(),
+                          reinterpret_cast<const uint8_t*>(key->d.data()),
+                          key->d.size()) != 1) {
+      FCP_LOG(WARNING) << "Skipping key with invalid private key";
+      continue;
+    }
+
+    processed_keys[key->key_id].push_back(std::move(hpke_key));
+  }
+  return processed_keys;
+}
+
+}  // namespace
+
+MessageEncryptor::MessageEncryptor()
+    : hpke_kem_(EVP_hpke_x25519_hkdf_sha256()),
+      hpke_kdf_(EVP_hpke_hkdf_sha256()),
+      hpke_aead_(EVP_hpke_aes_128_gcm()),
+      aead_(EVP_aead_aes_128_gcm_siv()) {}
+
+absl::StatusOr<EncryptMessageResult> MessageEncryptor::Encrypt(
+    absl::string_view plaintext,
+    const std::variant<absl::string_view, confidentialcompute::Key>&
+        recipient_public_key,
+    absl::string_view associated_data) const {
+  return EncryptInternal(plaintext, recipient_public_key, associated_data,
+                         /*src_state=*/std::nullopt, /*dst_state=*/"",
+                         /*signer=*/std::nullopt);
+}
+
+absl::StatusOr<EncryptMessageResult> MessageEncryptor::EncryptForRelease(
+    absl::string_view plaintext,
+    const std::variant<absl::string_view, confidentialcompute::Key>&
+        recipient_public_key,
+    absl::string_view associated_data,
+    std::optional<absl::string_view> src_state, absl::string_view dst_state,
+    absl::FunctionRef<absl::StatusOr<std::string>(absl::string_view)> signer)
+    const {
+  return EncryptInternal(plaintext, recipient_public_key, associated_data,
+                         src_state, dst_state, signer);
+}
+
+absl::StatusOr<EncryptMessageResult> MessageEncryptor::EncryptInternal(
+    absl::string_view plaintext,
+    const std::variant<absl::string_view, confidentialcompute::Key>&
+        recipient_public_key,
+    absl::string_view associated_data,
+    std::optional<absl::string_view> src_state, absl::string_view dst_state,
+    std::optional<
+        absl::FunctionRef<absl::StatusOr<std::string>(absl::string_view)>>
+        signer) const {
+  SymmetricKey symmetric_key{
+      .algorithm = crypto_internal::kAeadAes128GcmSivFixedNonce,
+      .key_ops = {kCoseKeyOpDecrypt},
+      .k = std::string(EVP_AEAD_key_length(aead_), '\0'),
+  };
+  RAND_bytes(reinterpret_cast<uint8_t*>(symmetric_key.k.data()),
+             symmetric_key.k.size());
+  // Cleanse the memory containing the symmetric key upon exiting the scope so
+  // the key cannot be accessed outside this function.
+  absl::Cleanup key_cleanup = [&symmetric_key]() {
+    OPENSSL_cleanse(symmetric_key.k.data(), symmetric_key.k.size());
+  };
+  bool encode_without_libcppbor =
+      std::holds_alternative<Key>(recipient_public_key);
+  ABSL_ASSIGN_OR_RETURN(std::string serialized_symmetric_key,
+                        symmetric_key.Encode(encode_without_libcppbor));
+  absl::Cleanup serialized_key_cleanup = [&serialized_symmetric_key]() {
+    OPENSSL_cleanse(serialized_symmetric_key.data(),
+                    serialized_symmetric_key.size());
+  };
+
+  Key key;
+  if (const absl::string_view* value =
+          std::get_if<absl::string_view>(&recipient_public_key);
+      value != nullptr) {
+    // Handle the case where the key is a serialized CWT or COSE_Key.
+    //
+    // All (untagged) CWTs start with '\x84' (4 element array). COSE_Keys are a
+    // map type, so they always have a different prefix.
+    if (absl::StartsWith(*value, "\x84")) {
+      ABSL_ASSIGN_OR_RETURN(OkpCwt cwt, OkpCwt::Decode(*value));
+      if (!cwt.public_key) {
+        return absl::InvalidArgumentError("CWT has no public key");
+      }
+      ABSL_ASSIGN_OR_RETURN(key, ConvertOkpKey(std::move(*cwt.public_key)));
+    } else {
+      ABSL_ASSIGN_OR_RETURN(OkpKey okp_key, OkpKey::Decode(*value));
+      ABSL_ASSIGN_OR_RETURN(key, ConvertOkpKey(std::move(okp_key)));
+    }
+  } else {
+    key = std::get<Key>(recipient_public_key);
+  }
+  if (key.algorithm() != Key::HPKE_X25519_SHA256_AES128_GCM) {
+    return absl::InvalidArgumentError("unsupported public key algorithm");
+  }
+  if (key.has_purpose() && key.purpose() != Key::ENCRYPT) {
+    return absl::InvalidArgumentError("public key disallows encrypt operation");
+  }
+
+  bssl::UniquePtr<EVP_AEAD_CTX> aead_ctx(EVP_AEAD_CTX_new(
+      aead_, reinterpret_cast<const uint8_t*>(symmetric_key.k.data()),
+      symmetric_key.k.size(), EVP_AEAD_DEFAULT_TAG_LENGTH));
+  if (aead_ctx == nullptr) {
+    return absl::StatusBuilder(absl::StatusCode::kInternal)
+           << "Failed to initialize EVP_AEAD_CTX: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  std::string ciphertext(plaintext.size() + EVP_AEAD_MAX_OVERHEAD, '\0');
+  size_t ciphertext_len = 0;
+  if (EVP_AEAD_CTX_seal(
+          aead_ctx.get(), reinterpret_cast<uint8_t*>(ciphertext.data()),
+          &ciphertext_len, ciphertext.size(),
+          reinterpret_cast<const uint8_t*>(kNonce.data()), kNonce.size(),
+          reinterpret_cast<const uint8_t*>(plaintext.data()), plaintext.size(),
+          reinterpret_cast<const uint8_t*>(associated_data.data()),
+          associated_data.size()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInternal)
+           << "AEAD encryption failed: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  ciphertext.resize(ciphertext_len);
+  ABSL_ASSIGN_OR_RETURN(
+      crypto_internal::WrapSymmetricKeyResult wrap_symmetric_key_result,
+      crypto_internal::WrapSymmetricKey(hpke_kem_, hpke_kdf_, hpke_aead_,
+                                        serialized_symmetric_key,
+                                        key.key_material(), associated_data));
+
+  // If a release token was requested, generate it.
+  std::string serialized_release_token;
+  if (signer) {
+    ReleaseToken release_token{
+        .signing_algorithm = crypto_internal::kEs256,
+        .encryption_algorithm = crypto_internal::kHpkeBaseX25519Sha256Aes128Gcm,
+        .encryption_key_id = std::move(*key.mutable_key_id()),
+        .src_state = src_state ? std::make_optional<std::string>(*src_state)
+                               : std::nullopt,
+        .dst_state = std::string(dst_state),
+    };
+    ABSL_ASSIGN_OR_RETURN(
+        std::string enc_structure,
+        release_token.BuildEncStructureForEncrypting(/*aad=*/""));
+    ABSL_ASSIGN_OR_RETURN(
+        crypto_internal::WrapSymmetricKeyResult wrap_symmetric_key_result,
+        crypto_internal::WrapSymmetricKey(hpke_kem_, hpke_kdf_, hpke_aead_,
+                                          serialized_symmetric_key,
+                                          key.key_material(), enc_structure));
+    release_token.encrypted_payload =
+        std::move(wrap_symmetric_key_result.encrypted_symmetric_key),
+    release_token.encapped_key =
+        std::move(wrap_symmetric_key_result.encapped_key);
+
+    ABSL_ASSIGN_OR_RETURN(
+        std::string sig_structure,
+        release_token.BuildSigStructureForSigning(/*aad=*/""));
+    ABSL_ASSIGN_OR_RETURN(release_token.signature, (*signer)(sig_structure));
+    ABSL_ASSIGN_OR_RETURN(serialized_release_token, release_token.Encode());
+  }
+
+  return EncryptMessageResult{
+      .ciphertext = std::move(ciphertext),
+      .encapped_key = std::move(wrap_symmetric_key_result.encapped_key),
+      .encrypted_symmetric_key =
+          std::move(wrap_symmetric_key_result.encrypted_symmetric_key),
+      .release_token = std::move(serialized_release_token),
+  };
+}
+
+MessageDecryptor::MessageDecryptor(
+    const std::vector<absl::string_view>& decryption_keys)
+    : decryption_keys_(ProcessDecryptionKeys(decryption_keys)),
+      hpke_kem_(EVP_hpke_x25519_hkdf_sha256()),
+      hpke_kdf_(EVP_hpke_hkdf_sha256()),
+      hpke_aead_(EVP_hpke_aes_128_gcm()),
+      aead_(EVP_aead_aes_128_gcm_siv()) {}
+
+absl::StatusOr<std::string> MessageDecryptor::Decrypt(
+    absl::string_view ciphertext, absl::string_view ciphertext_associated_data,
+    absl::string_view encrypted_symmetric_key,
+    absl::string_view encrypted_symmetric_key_associated_data,
+    absl::string_view encapped_key, absl::string_view key_id) const {
+  ABSL_ASSIGN_OR_RETURN(
+      std::string symmetric_key,
+      UnwrapSymmetricKeyWithDecryptionKeys(
+          encrypted_symmetric_key, encrypted_symmetric_key_associated_data,
+          encapped_key, key_id));
+  // Cleanse the memory containing the symmetric key upon exiting the scope so
+  // the key cannot be accessed outside this function.
+  absl::Cleanup symmetric_key_cleanup = [&symmetric_key]() {
+    OPENSSL_cleanse(symmetric_key.data(), symmetric_key.size());
+  };
+  return DecryptReleasedResult(ciphertext, ciphertext_associated_data,
+                               symmetric_key);
+}
+
+absl::StatusOr<std::string> MessageDecryptor::DecryptReleasedResult(
+    absl::string_view ciphertext, absl::string_view associated_data,
+    absl::string_view symmetric_key) const {
+  ABSL_ASSIGN_OR_RETURN(SymmetricKey key, SymmetricKey::Decode(symmetric_key));
+  absl::Cleanup key_cleanup = [&key]() {
+    OPENSSL_cleanse(key.k.data(), key.k.size());
+  };
+  if (key.algorithm != crypto_internal::kAeadAes128GcmSivFixedNonce) {
+    return absl::InvalidArgumentError("unsupported symmetric key algorithm ");
+  }
+  if (!key.key_ops.empty() &&
+      absl::c_find(key.key_ops, kCoseKeyOpDecrypt) == key.key_ops.end()) {
+    return absl::InvalidArgumentError(
+        "symmetric key disallows decrypt operation");
+  }
+
+  bssl::UniquePtr<EVP_AEAD_CTX> aead_ctx(
+      EVP_AEAD_CTX_new(aead_, reinterpret_cast<const uint8_t*>(key.k.data()),
+                       key.k.size(), EVP_AEAD_DEFAULT_TAG_LENGTH));
+  if (aead_ctx == nullptr) {
+    return absl::StatusBuilder(absl::StatusCode::kInternal)
+           << "Failed to initialize EVP_AEAD_CTX: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  std::string plaintext(ciphertext.size(), '\0');
+  size_t plaintext_len = 0;
+  if (EVP_AEAD_CTX_open(
+          aead_ctx.get(), reinterpret_cast<uint8_t*>(plaintext.data()),
+          &plaintext_len, ciphertext.size(),
+          reinterpret_cast<const uint8_t*>(kNonce.data()), kNonce.size(),
+          reinterpret_cast<const uint8_t*>(ciphertext.data()),
+          ciphertext.size(),
+          reinterpret_cast<const uint8_t*>(associated_data.data()),
+          associated_data.size()) != 1) {
+    // Clear the plaintext buffer in case partial data was written.
+    OPENSSL_cleanse(plaintext.data(), ciphertext.size());
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "AEAD decryption failed: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  plaintext.resize(plaintext_len);
+  return plaintext;
+}
+
+absl::StatusOr<UnwrappedReleaseToken> MessageDecryptor::UnwrapReleaseToken(
+    absl::string_view release_token) const {
+  ABSL_ASSIGN_OR_RETURN(ReleaseToken token,
+                        ReleaseToken::Decode(release_token));
+  if (!token.encryption_key_id.has_value()) {
+    return absl::InvalidArgumentError("Release token has no encryption key ID");
+  }
+  if (!token.encapped_key.has_value()) {
+    return absl::InvalidArgumentError("Release token has no encapped key");
+  }
+  ABSL_ASSIGN_OR_RETURN(std::string enc_structure,
+                        token.BuildEncStructureForEncrypting(/*aad=*/""));
+  ABSL_ASSIGN_OR_RETURN(
+      std::string symmetric_key,
+      UnwrapSymmetricKeyWithDecryptionKeys(
+          token.encrypted_payload, enc_structure, token.encapped_key.value(),
+          token.encryption_key_id.value()));
+  return UnwrappedReleaseToken{
+      .src_state = token.src_state,
+      .dst_state = token.dst_state,
+      .serialized_symmetric_key = std::move(symmetric_key),
+  };
+}
+
+absl::StatusOr<std::string>
+MessageDecryptor::UnwrapSymmetricKeyWithDecryptionKeys(
+    absl::string_view encrypted_symmetric_key,
+    absl::string_view encrypted_symmetric_key_associated_data,
+    absl::string_view encapped_key, absl::string_view key_id) const {
+  // Attempt to decrypt with each key with a matching key ID. If all matching
+  // keys fail, return nullopt so that the caller can attempt to decrypt with
+  // the internally generated key (just in case the MessageDecryptor is being
+  // used to decrypt a mix of inputs using the Ledger and KMS).
+  auto it = decryption_keys_.find(key_id);
+  if (it == decryption_keys_.end()) {
+    return absl::StatusBuilder(absl::StatusCode::kFailedPrecondition)
+           << "no decryption key available for key ID h\""
+           << absl::BytesToHexString(key_id) << "\"";
+  }
+  absl::StatusOr<std::string> symmetric_key;
+  for (const auto& hpke_key : it->second) {
+    symmetric_key = crypto_internal::UnwrapSymmetricKey(
+        hpke_key.get(), hpke_kdf_, hpke_aead_, encrypted_symmetric_key,
+        encapped_key, encrypted_symmetric_key_associated_data);
+    if (symmetric_key.ok()) {
+      return *std::move(symmetric_key);
+    }
+  }
+  // Arbitrarily return the status of the last attempt.
+  return symmetric_key.status();
+}
+
+EcdsaP256R1Signer EcdsaP256R1Signer::Create() {
+  const EC_GROUP* p256_group = EC_group_p256();
+  bssl::UniquePtr<EC_KEY> key(EC_KEY_new());
+  FCP_CHECK(key) << "Failed to allocate EC_KEY: "
+                 << ERR_reason_error_string(ERR_get_error());
+
+  // Generate a new key pair with which we can generate a signature.
+  FCP_CHECK(EC_KEY_set_group(key.get(), p256_group) == 1)
+      << "Failed to set key group: "
+      << ERR_reason_error_string(ERR_get_error());
+  FCP_CHECK(EC_KEY_generate_key(key.get()) == 1)
+      << "Failed to generate key: " << ERR_reason_error_string(ERR_get_error());
+
+  // Extract the public key in octet encoded form for later use by the
+  // verifier.
+  bssl::UniquePtr<uint8_t> public_key_buf;
+  size_t public_key_size;
+  uint8_t* public_key_ptr = nullptr;
+  public_key_size =
+      EC_KEY_key2buf(key.get(), POINT_CONVERSION_UNCOMPRESSED, &public_key_ptr,
+                     /*ctx=*/nullptr);
+  FCP_CHECK(public_key_size > 0) << "Failed encode public key: "
+                                 << ERR_reason_error_string(ERR_get_error());
+  // Ensure the buffer is freed when it goes out of scope.
+  public_key_buf.reset(public_key_ptr);
+  return EcdsaP256R1Signer(
+      std::move(key), std::string(reinterpret_cast<char*>(public_key_buf.get()),
+                                  public_key_size));
+}
+
+EcdsaP256R1Signer::EcdsaP256R1Signer(bssl::UniquePtr<EC_KEY> key,
+                                     std::string encoded_public_key)
+    : key_(std::move(key)),
+      encoded_public_key_(std::move(encoded_public_key)) {}
+
+std::string EcdsaP256R1Signer::GetPublicKey() const {
+  return encoded_public_key_;
+}
+
+std::string EcdsaP256R1Signer::Sign(absl::string_view data) const {
+  // Compute a digest over the data.
+  auto data_digest = ComputeSHA256(data);
+
+  // Calculate the signature over the digest.
+  size_t signature_len = ECDSA_size_p1363(key_.get());
+  std::string signature_buf(signature_len, '\0');
+  FCP_CHECK(
+      ECDSA_sign_p1363(reinterpret_cast<const uint8_t*>(data_digest.data()),
+                       data_digest.size(),
+                       reinterpret_cast<uint8_t*>(signature_buf.data()),
+                       &signature_len, signature_buf.size(), key_.get()) == 1)
+      << "Failed to calculate signature: "
+      << ERR_reason_error_string(ERR_get_error());
+  signature_buf.resize(signature_len);
+  return signature_buf;
+}
+
+absl::StatusOr<EcdsaP256R1SignatureVerifier>
+EcdsaP256R1SignatureVerifier::Create(absl::string_view public_key) {
+  bssl::UniquePtr<EC_KEY> key(EC_KEY_new());
+  FCP_CHECK(key) << "Failed to allocate EC_KEY: "
+                 << ERR_reason_error_string(ERR_get_error());
+
+  // Initialize the public key from the encoded `public_key` parameter.
+  FCP_CHECK(EC_KEY_set_group(key.get(), EC_group_p256()) == 1)
+      << "Failed to set key group: "
+      << ERR_reason_error_string(ERR_get_error());
+  if (EC_KEY_oct2key(key.get(),
+                     reinterpret_cast<const uint8_t*>(public_key.data()),
+                     public_key.size(),
+                     /*ctx=*/nullptr) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to initialize public key: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+
+  return EcdsaP256R1SignatureVerifier(std::move(key));
+}
+
+EcdsaP256R1SignatureVerifier::EcdsaP256R1SignatureVerifier(
+    bssl::UniquePtr<EC_KEY> public_key)
+    : public_key_(std::move(public_key)) {}
+
+absl::Status EcdsaP256R1SignatureVerifier::Verify(
+    absl::string_view data, absl::string_view signature) const {
+  // Compute a digest over the data.
+  auto digest = ComputeSHA256(data);
+
+  // Verify the signature over the digest.
+  if (ECDSA_verify_p1363(reinterpret_cast<const uint8_t*>(digest.data()),
+                         digest.size(),
+                         reinterpret_cast<const uint8_t*>(signature.data()),
+                         signature.size(), public_key_.get()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Invalid signature: " << signature << " - "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::string> ConvertAsn1SignatureToP1363(
+    absl::string_view asn1_signature, size_t order_len) {
+  bssl::UniquePtr<ECDSA_SIG> sig(ECDSA_SIG_from_bytes(
+      reinterpret_cast<const uint8_t*>(asn1_signature.data()),
+      asn1_signature.size()));
+  if (sig == nullptr) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to parse ASN.1 signature: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+
+  std::string p1363_signature(2 * order_len, '\0');
+  if (BN_bn2bin_padded(reinterpret_cast<uint8_t*>(&p1363_signature[0]),
+                       order_len, sig->r) != 1 ||
+      BN_bn2bin_padded(reinterpret_cast<uint8_t*>(&p1363_signature[order_len]),
+                       order_len, sig->s) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to convert ASN.1 signature to P1363: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  return p1363_signature;
+}
+
+absl::StatusOr<std::string> ConvertP1363SignatureToAsn1(
+    absl::string_view p1363_signature) {
+  // IEEE P1363 signatures are the concatenation of the signature's uncompressed
+  // r and s components. Since both components are the same size, the signature
+  // should have an even length.
+  if (p1363_signature.size() % 2 != 0) {
+    return absl::InvalidArgumentError(
+        "P1363 signature does not have even length");
+  }
+
+  bssl::UniquePtr<ECDSA_SIG> sig(ECDSA_SIG_new());
+  if (ECDSA_SIG_set0(
+          sig.get(),
+          BN_bin2bn(reinterpret_cast<const uint8_t*>(p1363_signature.data()),
+                    p1363_signature.size() / 2, nullptr),
+          BN_bin2bn(reinterpret_cast<const uint8_t*>(
+                        p1363_signature.data() + p1363_signature.size() / 2),
+                    p1363_signature.size() / 2, nullptr)) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to convert P1363 signature: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  uint8_t* sig_bytes;
+  size_t sig_bytes_len;
+  if (ECDSA_SIG_to_bytes(&sig_bytes, &sig_bytes_len, sig.get()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to convert P1363 signature to ASN.1: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  std::string asn1_signature(reinterpret_cast<const char*>(sig_bytes),
+                             sig_bytes_len);
+  OPENSSL_free(sig_bytes);
+  return asn1_signature;
+}
+
+namespace crypto_internal {
+
+absl::StatusOr<WrapSymmetricKeyResult> WrapSymmetricKey(
+    const EVP_HPKE_KEM* hpke_kem, const EVP_HPKE_KDF* hpke_kdf,
+    const EVP_HPKE_AEAD* hpke_aead, absl::string_view symmetric_key,
+    absl::string_view recipient_public_key, absl::string_view associated_data) {
+  // Set up the HPKE context.
+  bssl::ScopedEVP_HPKE_CTX hpke_ctx;
+  std::string encapped_key(EVP_HPKE_MAX_ENC_LENGTH, '\0');
+  size_t encapped_key_len = 0;
+  if (EVP_HPKE_CTX_setup_sender(
+          hpke_ctx.get(), reinterpret_cast<uint8_t*>(encapped_key.data()),
+          &encapped_key_len, encapped_key.size(), hpke_kem, hpke_kdf, hpke_aead,
+          reinterpret_cast<const uint8_t*>(recipient_public_key.data()),
+          recipient_public_key.size(),
+          reinterpret_cast<const uint8_t*>(kInfo.data()), kInfo.size()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to set up HPKE: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  encapped_key.resize(encapped_key_len);
+  // Seal the secret key.
+  std::string encrypted_symmetric_key(
+      symmetric_key.size() + EVP_HPKE_CTX_max_overhead(hpke_ctx.get()), '\0');
+  size_t encrypted_symmetric_key_len = 0;
+  if (EVP_HPKE_CTX_seal(
+          hpke_ctx.get(),
+          reinterpret_cast<uint8_t*>(encrypted_symmetric_key.data()),
+          &encrypted_symmetric_key_len, encrypted_symmetric_key.size(),
+          reinterpret_cast<const uint8_t*>(symmetric_key.data()),
+          symmetric_key.size(),
+          reinterpret_cast<const uint8_t*>(associated_data.data()),
+          associated_data.size()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInternal)
+           << "Failed to seal secret key: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  encrypted_symmetric_key.resize(encrypted_symmetric_key_len);
+  return WrapSymmetricKeyResult{
+      .encapped_key = std::move(encapped_key),
+      .encrypted_symmetric_key = std::move(encrypted_symmetric_key)};
+}
+
+absl::StatusOr<std::string> UnwrapSymmetricKey(
+    const EVP_HPKE_KEY* hpke_key, const EVP_HPKE_KDF* hpke_kdf,
+    const EVP_HPKE_AEAD* hpke_aead, absl::string_view encrypted_symmetric_key,
+    absl::string_view encapped_key, absl::string_view associated_data) {
+  // Set up the HPKE context.
+  bssl::ScopedEVP_HPKE_CTX hpke_ctx;
+
+  if (EVP_HPKE_CTX_setup_recipient(
+          hpke_ctx.get(), hpke_key, hpke_kdf, hpke_aead,
+          reinterpret_cast<const uint8_t*>(encapped_key.data()),
+          encapped_key.size(), reinterpret_cast<const uint8_t*>(kInfo.data()),
+          kInfo.size()) != 1) {
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << " Failed to set up HPKE context: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+
+  std::string symmetric_key(encrypted_symmetric_key.size(), '\0');
+  size_t symmetric_key_len = 0;
+  if (EVP_HPKE_CTX_open(
+          hpke_ctx.get(), reinterpret_cast<uint8_t*>(symmetric_key.data()),
+          &symmetric_key_len, encrypted_symmetric_key.size(),
+          reinterpret_cast<const uint8_t*>(encrypted_symmetric_key.data()),
+          encrypted_symmetric_key.size(),
+          reinterpret_cast<const uint8_t*>(associated_data.data()),
+          associated_data.size()) != 1) {
+    // Clear the symmetric key buffer in case partial data was written.
+    OPENSSL_cleanse(symmetric_key.data(), symmetric_key.size());
+    return absl::StatusBuilder(absl::StatusCode::kInvalidArgument)
+           << "Failed to unwrap symmetric key: "
+           << ERR_reason_error_string(ERR_get_error());
+  }
+  symmetric_key.resize(symmetric_key_len);
+  return symmetric_key;
+}
+}  // namespace crypto_internal
+
+}  // namespace confidential_compute
+}  // namespace fcp

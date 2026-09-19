@@ -1,0 +1,32 @@
+diff --git a/components/cbor/BUILD.gn b/components/cbor/BUILD.gn
+index 91fbfffd3c..ac54c6a342 100644
+--- a/components/cbor/BUILD.gn
++++ b/components/cbor/BUILD.gn
+@@ -4,6 +4,7 @@
+ 
+ import("//build/buildflag_header.gni")
+ import("//build/config/cronet/config.gni")
++import("//build/config/rust.gni")  # 刀16/e2e: enable_cpp_api_from_rust
+ import("//testing/libfuzzer/fuzzer_test.gni")
+ 
+ buildflag_header("buildflags") {
+@@ -12,7 +13,9 @@ buildflag_header("buildflags") {
+   # TODO(crbug.com/535682335): Remove `USE_CBOR_RUST` buildflag entirely,
+   # unconditionally enable Rust CBOR parser, and drop `is_cronet_build` check
+   # once Cronet supports Crubit dependencies.
+-  flags = [ "USE_CBOR_RUST=!$is_cronet_build" ]
++  # 刀16/e2e: 外部 rust 工具链 (rust_sysroot_absolute) 无 crubit 绑定,
++  # C++ 侧 #if BUILDFLAG(USE_CBOR_RUST) 与 rust 互操作面协同关闭.
++  flags = [ "USE_CBOR_RUST=!$is_cronet_build && $enable_cpp_api_from_rust" ]
+ }
+ 
+ component("cbor") {
+@@ -37,7 +40,7 @@ component("cbor") {
+     "//base",
+   ]
+ 
+-  if (!is_cronet_build) {
++  if (!is_cronet_build && enable_cpp_api_from_rust) {
+     public_deps = [
+       "//build/rust/crubit",
+       "//components/cbor/rust:cbor_rust_bindings",

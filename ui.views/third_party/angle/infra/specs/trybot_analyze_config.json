@@ -1,0 +1,10 @@
+{
+    "angle": {
+        "exclusions": [
+            ".vpython3",
+            "DEPS",
+            "infra/config/generated/builders/.*",
+            "infra/config/generated/testing/.*"
+        ]
+    }
+}

@@ -1,0 +1,51 @@
+Copyright 2026 Charliechen
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+   * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+   * Neither the name of liews nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-----------------------------------------------------------------------------
+
+Scope of this license and third-party notices
+
+The BSD-3-Clause license above applies to the original liews code in
+this repository: scripts/, patches/, examples/, args.gn, and the
+build/packaging files at the repository root.
+
+This repository also vendors a trimmed Chromium source tree:
+
+  * ui.views/ is derived from the Chromium project and is licensed
+    under Chromium's BSD-3-Clause license; see ui.views/LICENSE.
+    Redistributions must retain Chromium's copyright notices and
+    license text, and neither the name of Google LLC nor the names of
+    Chromium's contributors may be used to endorse products derived
+    from that code.
+
+  * Third-party libraries bundled under ui.views/ retain their
+    original licenses; see ui.views/THIRD_PARTY_LICENSES.md. Note in
+    particular that ui.views/third_party/ffmpeg includes LGPL-2.1
+    covered code, which imposes additional obligations (for example,
+    providing relinkable object files or source availability) when
+    statically linked into distributed binaries.

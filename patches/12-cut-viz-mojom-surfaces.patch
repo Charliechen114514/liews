@@ -1,0 +1,2494 @@
+diff --git a/components/input/BUILD.gn b/components/input/BUILD.gn
+index 51e5c64e91..48eaadf450 100644
+--- a/components/input/BUILD.gn
++++ b/components/input/BUILD.gn
+@@ -59,45 +59,5 @@ component("input") {
+   }
+ }
+ 
+-source_set("unit_tests") {
+-  testonly = true
+-  sources = [
+-    "tap_suppression_controller_unittest.cc",
+-  ]
+-  deps = [
+-    ":input",
+-    "//base",
+-    "//base/test:test_support",
+-    "//testing/gtest",
+-    "//ui/base:features",
+-    "//ui/events",
+-    "//ui/events:dom_keycode_converter",
+-    "//ui/events:test_support",
+-    "//ui/events:velocity_tracker",
+-  ]
+-}
+-
+-source_set("test_support") {
+-  testonly = true
+-  sources = []
+-  deps = [
+-    ":input",
+-    "//base",
+-    "//cc",
+-  ]
+-}
+-
+-source_set("browser_tests") {
+-  testonly = true
+-  sources = [ "test/input_browsertest.cc" ]
+ 
+-  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+ 
+-  deps = [
+-    "//base",
+-    "//components/input",
+-    "//content/shell:content_shell_lib",
+-    "//content/test:browsertest_support",
+-    "//content/test:test_support",
+-  ]
+-}
+diff --git a/components/input/utils.cc b/components/input/utils.cc
+index c072e73192..7b359c35a5 100644
+--- a/components/input/utils.cc
++++ b/components/input/utils.cc
+@@ -8,7 +8,6 @@
+ 
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+-#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ #include "base/android/android_info.h"
+@@ -20,7 +19,6 @@
+ namespace input {
+ 
+ using blink::WebInputEvent;
+-using blink::mojom::InputEventResultState;
+ using perfetto::protos::pbzero::ChromeLatencyInfo2;
+ 
+ #if BUILDFLAG(IS_ANDROID)
+@@ -154,26 +152,7 @@ ChromeLatencyInfo2::InputType InputEventTypeToProto(
+   }
+ }
+ 
+-ChromeLatencyInfo2::InputResultState InputEventResultStateToProto(
+-    InputEventResultState result_state) {
+-  switch (result_state) {
+-    case InputEventResultState::kUnknown:
+-      return ChromeLatencyInfo2::InputResultState::UNKNOWN;
+-    case InputEventResultState::kConsumed:
+-      return ChromeLatencyInfo2::InputResultState::CONSUMED;
+-    case InputEventResultState::kNotConsumed:
+-      return ChromeLatencyInfo2::InputResultState::NOT_CONSUMED;
+-    case InputEventResultState::kNoConsumerExists:
+-      return ChromeLatencyInfo2::InputResultState::NO_CONSUMER_EXISTS;
+-    case InputEventResultState::kIgnored:
+-      return ChromeLatencyInfo2::InputResultState::IGNORED;
+-    case InputEventResultState::kSetNonBlocking:
+-      return ChromeLatencyInfo2::InputResultState::SET_NON_BLOCKING;
+-    case InputEventResultState::kSetNonBlockingDueToFling:
+-      return ChromeLatencyInfo2::InputResultState::
+-          SET_NON_BLOCKING_DUE_TO_FLING;
+-  }
+-}
++
+ 
+ }  // namespace input
+ 
+diff --git a/components/input/utils.h b/components/input/utils.h
+index cb9927bc13..c8bc40082d 100644
+--- a/components/input/utils.h
++++ b/components/input/utils.h
+@@ -8,8 +8,6 @@
+ #include "base/component_export.h"
+ #include "base/gtest_prod_util.h"
+ #include "base/tracing/protos/chrome_track_event.pbzero.h"
+-#include "third_party/blink/public/common/input/web_input_event.h"
+-#include "third_party/blink/public/mojom/input/input_event_result.mojom-shared.h"
+ 
+ namespace input {
+ 
+@@ -24,12 +22,7 @@ class COMPONENT_EXPORT(INPUT) InputUtils {
+ #endif
+ };
+ 
+-perfetto::protos::pbzero::ChromeLatencyInfo2::InputType InputEventTypeToProto(
+-    blink::WebInputEvent::Type event_type);
+-
+-perfetto::protos::pbzero::ChromeLatencyInfo2::InputResultState
+-InputEventResultStateToProto(blink::mojom::InputEventResultState result_state);
+-
++// (刀10.6: latency proto 转换声明已随 blink 输入面出局。)
+ }  // namespace input
+ 
+ #endif  // COMPONENTS_INPUT_UTILS_H_
+diff --git a/components/viz/common/BUILD.gn b/components/viz/common/BUILD.gn
+index 18ffe27d4b..3cfb13834c 100644
+--- a/components/viz/common/BUILD.gn
++++ b/components/viz/common/BUILD.gn
+@@ -233,7 +233,6 @@ viz_component("common") {
+     "//gpu/config",
+     "//gpu/ipc/common",
+     "//gpu/vulkan:buildflags",
+-    "//media:media_buildflags",
+     "//mojo/public/cpp/base",
+     "//mojo/public/cpp/system",
+     "//services/tracing/public/cpp",
+@@ -285,79 +284,5 @@ viz_component("common") {
+   }
+ }
+ 
+-viz_source_set("unit_tests") {
+-  testonly = true
+-  sources = [
+-    "display/overlay_strategy_unittest.cc",
+-    "frame_sinks/begin_frame_args_unittest.cc",
+-    "frame_sinks/begin_frame_source_unittest.cc",
+-    "frame_sinks/copy_output_util_unittest.cc",
+-    "frame_sinks/delay_based_time_source_unittest.cc",
+-    "gpu/context_cache_controller_unittest.cc",
+-    "hit_test/hit_test_query_unittest.cc",
+-    "quads/compositor_frame_metadata_unittest.cc",
+-    "quads/compositor_frame_transition_directive_unittest.cc",
+-    "quads/compositor_render_pass_unittest.cc",
+-    "quads/draw_quad_unittest.cc",
+-    "quads/offset_tag_unittest.cc",
+-    "quads/render_pass_io_unittest.cc",
+-    "resources/peak_gpu_memory_tracker_util_unittest.cc",
+-    "resources/shared_image_format_unittest.cc",
+-    "resources/shared_image_format_utils_unittest.cc",
+-    "surfaces/child_local_surface_id_allocator_unittest.cc",
+-    "surfaces/local_surface_id_unittest.cc",
+-    "surfaces/parent_local_surface_id_allocator_unittest.cc",
+-    "surfaces/scoped_surface_id_allocator_unittest.cc",
+-    "surfaces/surface_range_unittest.cc",
+-  ]
+ 
+-  if (enable_vulkan) {
+-    sources += [ "gpu/vulkan_in_process_context_provider_unittest.cc" ]
+-  }
+-  deps = [
+-    ":buildflags",
+-    ":common",
+-    "//base/test:test_support",
+-    "//cc:test_support",
+-    "//components/viz/test:test_support",
+-    "//gpu/command_buffer/client:gles2_implementation",
+-    "//gpu/command_buffer/client:gles2_interface",
+-    "//gpu/ipc:gl_in_process_context",
+-    "//gpu/ipc/common:surface_handle_type",
+-    "//media",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//ui/gfx",
+-    "//ui/gfx:color_space",
+-    "//ui/gfx:test_support",
+-    "//ui/gfx/geometry",
+-    "//ui/latency",
+-  ]
+-}
+ 
+-viz_source_set("perf_tests") {
+-  testonly = true
+-  sources = [ "quads/draw_quad_perftest.cc" ]
+-
+-  deps = [
+-    ":common",
+-    "//base",
+-    "//cc/base",
+-    "//skia",
+-    "//testing/gtest",
+-    "//testing/perf",
+-  ]
+-}
+-
+-fuzzer_test("hit_test_query_fuzzer") {
+-  sources = [ "hit_test/hit_test_query_fuzzer.cc" ]
+-
+-  libfuzzer_options = [ "max_len=4096" ]
+-
+-  deps = [
+-    ":common",
+-    "//base/test:test_support",
+-    "//components/viz/test:test_support",
+-    "//ui/gfx:test_support",
+-  ]
+-}
+diff --git a/components/viz/common/features.cc b/components/viz/common/features.cc
+index 5c57fe3f20..b5f9571086 100644
+--- a/components/viz/common/features.cc
++++ b/components/viz/common/features.cc
+@@ -20,7 +20,6 @@
+ #include "gpu/config/gpu_driver_bug_workaround_type.h"
+ #include "gpu/config/gpu_finch_features.h"
+ #include "gpu/config/gpu_switches.h"
+-#include "media/media_buildflags.h"
+ #include "ui/gl/gl_switches.h"
+ 
+ #if BUILDFLAG(IS_ANDROID)
+diff --git a/components/viz/host/host_frame_sink_manager.cc b/components/viz/host/host_frame_sink_manager.cc
+index e575f2b937..86c8f51816 100644
+--- a/components/viz/host/host_frame_sink_manager.cc
++++ b/components/viz/host/host_frame_sink_manager.cc
+@@ -25,649 +25,10 @@
+ #include "components/viz/common/surfaces/surface_info.h"
+ #include "components/viz/host/renderer_settings_creation.h"
+ #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
+-#include "services/viz/privileged/mojom/compositing/frame_sink_manager_test_api.mojom-forward.h"
+-#include "services/viz/privileged/mojom/compositing/frame_sinks_metrics_recorder.mojom.h"
+ #include "services/viz/privileged/mojom/compositing/renderer_settings.mojom.h"
+ 
+ namespace viz {
+ 
+-HostFrameSinkManager::HostFrameSinkManager()
+-    : debug_renderer_settings_(CreateDefaultDebugRendererSettings()) {}
+-
+-HostFrameSinkManager::~HostFrameSinkManager() {
+-  viz_touch_state_ro_mapping_ = base::ReadOnlySharedMemoryMapping();
+-}
+-
+-void HostFrameSinkManager::SetLocalManager(
+-    mojom::FrameSinkManager* frame_sink_manager) {
+-  DCHECK(!frame_sink_manager_remote_);
+-  frame_sink_manager_ = frame_sink_manager;
+-}
+-
+-void HostFrameSinkManager::BindAndSetManager(
+-    mojo::PendingReceiver<mojom::FrameSinkManagerClient> receiver,
+-    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+-    mojo::PendingRemote<mojom::FrameSinkManager> remote) {
+-  DCHECK(!frame_sink_manager_client_receiver_.is_bound());
+-
+-  frame_sink_manager_client_receiver_.Bind(std::move(receiver),
+-                                           std::move(task_runner));
+-  frame_sink_manager_remote_.Bind(std::move(remote));
+-  frame_sink_manager_ = frame_sink_manager_remote_.get();
+-
+-  frame_sink_manager_remote_.set_disconnect_handler(base::BindOnce(
+-      &HostFrameSinkManager::OnConnectionLost, base::Unretained(this)));
+-
+-  if (input::InputUtils::IsTransferInputToVizSupported()) {
+-    frame_sink_manager_->SetupRendererInputRouterDelegateRegistry(
+-        rir_delegate_registry_.BindNewPipeAndPassReceiver());
+-  }
+-
+-  if (connection_was_lost_) {
+-    RegisterAfterConnectionLoss();
+-    connection_was_lost_ = false;
+-  }
+-}
+-
+-void HostFrameSinkManager::SetConnectionLostCallback(
+-    base::RepeatingClosure callback) {
+-  connection_lost_callback_ = std::move(callback);
+-}
+-
+-void HostFrameSinkManager::SetViewTransitionResourcesCapturedCallback(
+-    const blink::ViewTransitionToken& token,
+-    base::OnceClosure callback) {
+-  view_transition_callbacks_[token] = std::move(callback);
+-}
+-
+-void HostFrameSinkManager::RegisterFrameSinkId(
+-    const FrameSinkId& frame_sink_id,
+-    HostFrameSinkClient* client,
+-    ReportFirstSurfaceActivation report_activation) {
+-  DCHECK(frame_sink_id.is_valid());
+-  DCHECK(client);
+-
+-  FrameSinkData& data = frame_sink_data_map_[frame_sink_id];
+-  if (data.IsFrameSinkRegistered()) {
+-    // Note that `report_activation` causes dispatch of OnFirstSurfaceActivation
+-    // for the first frame associated with each SurfaceId. This means the new
+-    // client will receive this notification (if `report_activation` is set)
+-    // the next time a new SurfaceId is submitted for this `frame_sink_id`.
+-    CHECK_EQ(data.report_activation, report_activation);
+-    data.client = client;
+-    return;
+-  }
+-
+-  DCHECK(!data.has_created_compositor_frame_sink);
+-  data.client = client;
+-  data.report_activation = report_activation;
+-  frame_sink_manager_->RegisterFrameSinkId(
+-      frame_sink_id, report_activation == ReportFirstSurfaceActivation::kYes);
+-}
+-
+-bool HostFrameSinkManager::IsFrameSinkIdRegistered(
+-    const FrameSinkId& frame_sink_id) const {
+-  auto iter = frame_sink_data_map_.find(frame_sink_id);
+-  return iter != frame_sink_data_map_.end() && iter->second.client != nullptr;
+-}
+-
+-void HostFrameSinkManager::InvalidateFrameSinkId(
+-    const FrameSinkId& frame_sink_id,
+-    HostFrameSinkClient* client,
+-    base::OnceClosure callback) {
+-  DCHECK(frame_sink_id.is_valid());
+-
+-  FrameSinkData& data = frame_sink_data_map_[frame_sink_id];
+-  CHECK(data.IsFrameSinkRegistered());
+-  CHECK_EQ(data.client, client);
+-
+-  const bool destroy_synchronously =
+-      data.has_created_compositor_frame_sink && data.wait_on_destruction;
+-
+-  data.has_created_compositor_frame_sink = false;
+-  data.client = nullptr;
+-
+-  // There may be frame sink hierarchy information left in FrameSinkData.
+-  if (data.IsEmpty()) {
+-    frame_sink_data_map_.erase(frame_sink_id);
+-  }
+-
+-  display_hit_test_query_.erase(frame_sink_id);
+-
+-  if (destroy_synchronously) {
+-    // This synchronous call ensures that the GL context/surface that draw to
+-    // the platform window (eg. XWindow or HWND) get destroyed before the
+-    // platform window is destroyed.
+-    mojo::SyncCallRestrictions::ScopedAllowSyncCall allow_sync_call;
+-    frame_sink_manager_->DestroyCompositorFrameSink(frame_sink_id);
+-
+-    // Other synchronous IPCs continue to get processed while
+-    // DestroyCompositorFrameSink() is happening, so it's possible
+-    // HostFrameSinkManager has been mutated. |data| might not be a valid
+-    // reference at this point.
+-  }
+-
+-  base::OnceClosure invalidate_callback;
+-  if (callback) {
+-    DCHECK(!frame_sink_invalidate_callbacks_.contains(frame_sink_id));
+-    frame_sink_invalidate_callbacks_.emplace(frame_sink_id,
+-                                             std::move(callback));
+-    invalidate_callback =
+-        base::BindOnce(&HostFrameSinkManager::InvalidateFrameSinkCallback,
+-                       base::Unretained(this), frame_sink_id);
+-  }
+-
+-  frame_sink_manager_->InvalidateFrameSinkId(frame_sink_id,
+-                                             std::move(invalidate_callback));
+-}
+-
+-void HostFrameSinkManager::InvalidateFrameSinkCallback(
+-    const FrameSinkId& frame_sink_id) {
+-  frame_sink_invalidate_callbacks_.erase(frame_sink_id);
+-}
+-
+-void HostFrameSinkManager::SetFrameSinkDebugLabel(
+-    const FrameSinkId& frame_sink_id,
+-    const std::string& debug_label) {
+-  DCHECK(frame_sink_id.is_valid());
+-
+-  FrameSinkData& data = frame_sink_data_map_[frame_sink_id];
+-  DCHECK(data.IsFrameSinkRegistered());
+-
+-  if (data.debug_label == debug_label) {
+-    return;
+-  }
+-
+-  data.debug_label = debug_label;
+-  frame_sink_manager_->SetFrameSinkDebugLabel(frame_sink_id, debug_label);
+-}
+-
+-void HostFrameSinkManager::CreateRootCompositorFrameSink(
+-    mojom::RootCompositorFrameSinkParamsPtr params,
+-    bool maybe_wait_on_destruction /*=true*/) {
+-  // Should only be used with an out-of-process display compositor.
+-  DCHECK(frame_sink_manager_remote_);
+-
+-  FrameSinkId frame_sink_id = params->frame_sink_id;
+-  FrameSinkData& data = frame_sink_data_map_[frame_sink_id];
+-  DCHECK(data.IsFrameSinkRegistered());
+-
+-  // If GL context is lost a new CompositorFrameSink will be created. Destroy
+-  // the old CompositorFrameSink first.
+-  if (data.has_created_compositor_frame_sink) {
+-    frame_sink_manager_->DestroyCompositorFrameSink(frame_sink_id,
+-                                                    base::DoNothing());
+-  }
+-
+-  data.is_root = true;
+-  data.has_created_compositor_frame_sink = true;
+-
+-  // Only wait on destruction if using GPU compositing for the window.
+-  data.wait_on_destruction =
+-      maybe_wait_on_destruction && params->gpu_compositing;
+-
+-  frame_sink_manager_->CreateRootCompositorFrameSink(std::move(params));
+-  display_hit_test_query_[frame_sink_id] =
+-      std::make_unique<HitTestQuery>(std::nullopt);
+-}
+-
+-#if BUILDFLAG(IS_MAC)
+-void HostFrameSinkManager::CreateCompositorDisplayLink(
+-    mojom::CompositorDisplayLinkParamsPtr params) {
+-  frame_sink_manager_->CreateCompositorDisplayLink(std::move(params));
+-}
+-#endif
+-
+-void HostFrameSinkManager::CreateCompositorFrameSink(
+-    const FrameSinkId& frame_sink_id,
+-    mojo::PendingReceiver<mojom::CompositorFrameSink> receiver,
+-    mojo::PendingRemote<mojom::CompositorFrameSinkClient> client,
+-    input::mojom::RenderInputRouterConfigPtr render_input_router_config) {
+-  CreateFrameSink(frame_sink_id, /*bundle_id=*/std::nullopt,
+-                  std::move(receiver), std::move(client),
+-                  std::move(render_input_router_config));
+-}
+-
+-void HostFrameSinkManager::CreateFrameSinkBundle(
+-    const FrameSinkBundleId& bundle_id,
+-    mojo::PendingReceiver<mojom::FrameSinkBundle> receiver,
+-    mojo::PendingRemote<mojom::FrameSinkBundleClient> client) {
+-  frame_sink_manager_->CreateFrameSinkBundle(bundle_id, std::move(receiver),
+-                                             std::move(client));
+-}
+-
+-void HostFrameSinkManager::CreateBundledCompositorFrameSink(
+-    const FrameSinkId& frame_sink_id,
+-    const FrameSinkBundleId& bundle_id,
+-    mojo::PendingReceiver<mojom::CompositorFrameSink> receiver,
+-    mojo::PendingRemote<mojom::CompositorFrameSinkClient> client) {
+-  CreateFrameSink(frame_sink_id, bundle_id, std::move(receiver),
+-                  std::move(client), /* render_input_router_config= */ nullptr);
+-}
+-
+-void HostFrameSinkManager::CreateFrameSink(
+-    const FrameSinkId& frame_sink_id,
+-    std::optional<FrameSinkBundleId> bundle_id,
+-    mojo::PendingReceiver<mojom::CompositorFrameSink> receiver,
+-    mojo::PendingRemote<mojom::CompositorFrameSinkClient> client,
+-    input::mojom::RenderInputRouterConfigPtr render_input_router_config) {
+-  FrameSinkData& data = frame_sink_data_map_[frame_sink_id];
+-  DCHECK(data.IsFrameSinkRegistered());
+-
+-  // If GL context is lost a new CompositorFrameSink will be created. Destroy
+-  // the old CompositorFrameSink first.
+-  if (data.has_created_compositor_frame_sink) {
+-    frame_sink_manager_->DestroyCompositorFrameSink(frame_sink_id,
+-                                                    base::DoNothing());
+-  }
+-
+-  data.is_root = false;
+-  data.has_created_compositor_frame_sink = true;
+-  frame_sink_manager_->CreateCompositorFrameSink(
+-      frame_sink_id, bundle_id, std::move(receiver), std::move(client),
+-      std::move(render_input_router_config));
+-}
+-
+-void HostFrameSinkManager::OnFrameTokenChanged(
+-    const FrameSinkId& frame_sink_id,
+-    uint32_t frame_token,
+-    base::TimeTicks activation_time) {
+-  DCHECK(frame_sink_id.is_valid());
+-  auto iter = frame_sink_data_map_.find(frame_sink_id);
+-  if (iter == frame_sink_data_map_.end()) {
+-    return;
+-  }
+-
+-  const FrameSinkData& data = iter->second;
+-  if (data.client) {
+-    // TODO(crbug.com/431761865): Remove after the bug is fixed.
+-    SCOPED_CRASH_KEY_STRING32("content", "debug_label", data.debug_label);
+-    data.client->OnFrameTokenChanged(frame_token, activation_time);
+-  }
+-}
+-
+-bool HostFrameSinkManager::RegisterFrameSinkHierarchy(
+-    const FrameSinkId& parent_frame_sink_id,
+-    const FrameSinkId& child_frame_sink_id) {
+-  auto iter = frame_sink_data_map_.find(parent_frame_sink_id);
+-  // |parent_frame_sink_id| isn't registered so it can't embed anything.
+-  if (iter == frame_sink_data_map_.end() ||
+-      !iter->second.IsFrameSinkRegistered()) {
+-    return false;
+-  }
+-
+-  FrameSinkData& parent_data = iter->second;
+-  CHECK(!std::ranges::contains(parent_data.children, child_frame_sink_id));
+-  parent_data.children.push_back(child_frame_sink_id);
+-
+-  // Register and store the parent.
+-  frame_sink_manager_->RegisterFrameSinkHierarchy(parent_frame_sink_id,
+-                                                  child_frame_sink_id);
+-
+-  return true;
+-}
+-
+-void HostFrameSinkManager::UnregisterFrameSinkHierarchy(
+-    const FrameSinkId& parent_frame_sink_id,
+-    const FrameSinkId& child_frame_sink_id) {
+-  // Unregister and clear the stored parent.
+-  FrameSinkData& parent_data = frame_sink_data_map_[parent_frame_sink_id];
+-  size_t num_erased = std::erase(parent_data.children, child_frame_sink_id);
+-  CHECK_EQ(num_erased, 1u);
+-
+-  if (parent_data.IsEmpty()) {
+-    frame_sink_data_map_.erase(parent_frame_sink_id);
+-  }
+-
+-  frame_sink_manager_->UnregisterFrameSinkHierarchy(parent_frame_sink_id,
+-                                                    child_frame_sink_id);
+-}
+-
+-void HostFrameSinkManager::AddVideoDetectorObserver(
+-    mojo::PendingRemote<mojom::VideoDetectorObserver> observer) {
+-  frame_sink_manager_->AddVideoDetectorObserver(std::move(observer));
+-}
+-
+-void HostFrameSinkManager::CreateVideoCapturer(
+-    mojo::PendingReceiver<mojom::FrameSinkVideoCapturer> receiver,
+-    uint32_t capture_version_source) {
+-  frame_sink_manager_->CreateVideoCapturer(std::move(receiver),
+-                                           capture_version_source);
+-}
+-
+-std::unique_ptr<ClientFrameSinkVideoCapturer>
+-HostFrameSinkManager::CreateVideoCapturer(uint32_t capture_version_source) {
+-  return std::make_unique<ClientFrameSinkVideoCapturer>(base::BindRepeating(
+-      [](base::WeakPtr<HostFrameSinkManager> self,
+-         uint32_t capture_version_source,
+-         mojo::PendingReceiver<mojom::FrameSinkVideoCapturer> receiver) {
+-        self->CreateVideoCapturer(std::move(receiver), capture_version_source);
+-      },
+-      weak_ptr_factory_.GetWeakPtr(), capture_version_source));
+-}
+-
+-void HostFrameSinkManager::EvictSurfaces(
+-    const std::vector<SurfaceId>& surface_ids) {
+-  frame_sink_manager_->EvictSurfaces(surface_ids);
+-}
+-
+-void HostFrameSinkManager::RequestCopyOfOutput(
+-    const SurfaceId& surface_id,
+-    std::unique_ptr<CopyOutputRequest> request,
+-    bool capture_exact_surface_id,
+-    base::TimeDelta timeout) {
+-  frame_sink_manager_->RequestCopyOfOutput(surface_id, std::move(request),
+-                                           capture_exact_surface_id, timeout);
+-}
+-
+-void HostFrameSinkManager::SetupRenderInputRouterDelegateConnection(
+-    const FrameSinkId& frame_sink_id,
+-    mojo::PendingAssociatedRemote<input::mojom::RenderInputRouterDelegateClient>
+-        rir_delegate_client_remote,
+-    mojo::PendingAssociatedReceiver<input::mojom::RenderInputRouterDelegate>
+-        rir_delegate_receiver) {
+-  CHECK(input::InputUtils::IsTransferInputToVizSupported());
+-
+-  rir_delegate_registry_->SetupRenderInputRouterDelegateConnection(
+-      frame_sink_id, std::move(rir_delegate_client_remote),
+-      std::move(rir_delegate_receiver));
+-}
+-
+-void HostFrameSinkManager::NotifyRendererBlockStateChanged(
+-    bool blocked,
+-    const std::vector<FrameSinkId>& render_input_routers) {
+-  frame_sink_manager_->NotifyRendererBlockStateChanged(blocked,
+-                                                       render_input_routers);
+-}
+-
+-void HostFrameSinkManager::RequestInputBack() {
+-  frame_sink_manager_->RequestInputBack();
+-}
+-
+-const VizTouchState* HostFrameSinkManager::GetVizTouchStatePtr() const {
+-  if (viz_touch_state_ro_mapping_.IsValid()) {
+-    return viz_touch_state_ro_mapping_.GetMemoryAs<const VizTouchState>();
+-  }
+-  return nullptr;
+-}
+-
+-void HostFrameSinkManager::SetOnCopyOutputReadyCallback(
+-    const blink::SameDocNavigationScreenshotDestinationToken& destination_token,
+-    ScreenshotDestinationReadyCallback callback) {
+-  CHECK(screenshot_destinations_.find(destination_token) ==
+-        screenshot_destinations_.end());
+-  screenshot_destinations_[destination_token] = std::move(callback);
+-}
+-
+-void HostFrameSinkManager::InvalidateCopyOutputReadyCallback(
+-    const blink::SameDocNavigationScreenshotDestinationToken&
+-        destination_token) {
+-  auto it = screenshot_destinations_.find(destination_token);
+-  if (it == screenshot_destinations_.end()) {
+-    return;
+-  }
+-  screenshot_destinations_.erase(it);
+-}
+-
+-void HostFrameSinkManager::Throttle(const std::vector<FrameSinkId>& ids,
+-                                    base::TimeDelta interval) {
+-  frame_sink_manager_->Throttle(ids, interval);
+-}
+-
+-void HostFrameSinkManager::StartThrottlingAllFrameSinks(
+-    base::TimeDelta interval) {
+-  frame_sink_manager_->StartThrottlingAllFrameSinks(interval);
+-}
+-
+-void HostFrameSinkManager::StopThrottlingAllFrameSinks() {
+-  frame_sink_manager_->StopThrottlingAllFrameSinks();
+-}
+-
+-void HostFrameSinkManager::AddHitTestRegionObserver(
+-    HitTestRegionObserver* observer) {
+-  observers_.AddObserver(observer);
+-}
+-
+-void HostFrameSinkManager::RemoveHitTestRegionObserver(
+-    HitTestRegionObserver* observer) {
+-  observers_.RemoveObserver(observer);
+-}
+-
+-const DisplayHitTestQueryMap& HostFrameSinkManager::GetDisplayHitTestQuery()
+-    const {
+-  return display_hit_test_query_;
+-}
+-
+-void HostFrameSinkManager::OnConnectionLost() {
+-  connection_was_lost_ = true;
+-
+-  frame_sink_manager_client_receiver_.reset();
+-
+-  // `frame_sink_manager_` points to `frame_sink_manager_remote_` if using mojo.
+-  // Set `frame_sink_manager_` to nullptr before
+-  // frame_sink_manager_remote_.reset() to avoid dangling ptr.
+-  frame_sink_manager_ = nullptr;
+-  frame_sink_manager_remote_.reset();
+-  rir_delegate_registry_.reset();
+-
+-  metrics_recorder_remote_.reset();
+-
+-  // Clear the shared memory mapping
+-  viz_touch_state_ro_mapping_ = base::ReadOnlySharedMemoryMapping();
+-
+-#if BUILDFLAG(IS_ANDROID)
+-  // Any cached back buffers are invalid once the connection to the
+-  // FrameSinkManager is lost.
+-  min_valid_cache_back_buffer_id_ = next_cache_back_buffer_id_;
+-#endif
+-
+-  // CompositorFrameSinks are lost along with the connection to
+-  // mojom::FrameSinkManager.
+-  for (auto& map_entry : frame_sink_data_map_) {
+-    map_entry.second.has_created_compositor_frame_sink = false;
+-    map_entry.second.wait_on_destruction = false;
+-  }
+-
+-  frame_sink_invalidate_callbacks_.clear();
+-
+-  if (!connection_lost_callback_.is_null()) {
+-    connection_lost_callback_.Run();
+-  }
+-}
+-
+-void HostFrameSinkManager::RegisterAfterConnectionLoss() {
+-  // Register FrameSinkIds first.
+-  for (auto& map_entry : frame_sink_data_map_) {
+-    const FrameSinkId& frame_sink_id = map_entry.first;
+-    FrameSinkData& data = map_entry.second;
+-    if (data.client) {
+-      frame_sink_manager_->RegisterFrameSinkId(
+-          frame_sink_id,
+-          data.report_activation == ReportFirstSurfaceActivation::kYes);
+-    }
+-    if (!data.debug_label.empty()) {
+-      frame_sink_manager_->SetFrameSinkDebugLabel(frame_sink_id,
+-                                                  data.debug_label);
+-    }
+-  }
+-
+-  // Register FrameSink hierarchy second.
+-  for (auto& map_entry : frame_sink_data_map_) {
+-    const FrameSinkId& frame_sink_id = map_entry.first;
+-    FrameSinkData& data = map_entry.second;
+-    for (auto& child_frame_sink_id : data.children) {
+-      frame_sink_manager_->RegisterFrameSinkHierarchy(frame_sink_id,
+-                                                      child_frame_sink_id);
+-    }
+-  }
+-}
+-
+-void HostFrameSinkManager::OnFirstSurfaceActivation(
+-    const SurfaceInfo& surface_info) {
+-  auto it = frame_sink_data_map_.find(surface_info.id().frame_sink_id());
+-
+-  // If we've received a bogus or stale SurfaceId from Viz then just ignore it.
+-  if (it == frame_sink_data_map_.end()) {
+-    return;
+-  }
+-
+-  FrameSinkData& frame_sink_data = it->second;
+-  if (frame_sink_data.client) {
+-    frame_sink_data.client->OnFirstSurfaceActivation(surface_info);
+-  }
+-}
+-
+-void HostFrameSinkManager::OnAggregatedHitTestRegionListUpdated(
+-    const FrameSinkId& frame_sink_id,
+-    const std::vector<AggregatedHitTestRegion>& hit_test_data) {
+-  auto iter = display_hit_test_query_.find(frame_sink_id);
+-  // The corresponding HitTestQuery has already been deleted, so drop the
+-  // in-flight hit-test data.
+-  if (iter == display_hit_test_query_.end()) {
+-    return;
+-  }
+-
+-  iter->second->OnAggregatedHitTestRegionListUpdated(hit_test_data);
+-
+-  // Ensure that HitTestQuery are updated so that observers are not working with
+-  // stale data.
+-  for (HitTestRegionObserver& observer : observers_) {
+-    observer.OnAggregatedHitTestRegionListUpdated(frame_sink_id, hit_test_data);
+-  }
+-}
+-
+-#if BUILDFLAG(IS_ANDROID)
+-void HostFrameSinkManager::VerifyThreadIdsDoNotBelongToHost(
+-    const std::vector<int32_t>& thread_ids,
+-    VerifyThreadIdsDoNotBelongToHostCallback callback) {
+-  static_assert(
+-      std::is_same_v<int32_t, base::PlatformThreadId::UnderlyingType>);
+-  base::flat_set<base::PlatformThreadId> tids(thread_ids.begin(),
+-                                              thread_ids.end());
+-  std::move(callback).Run(CheckThreadIdsDoNotBelongToCurrentProcess(tids));
+-}
+-#endif
+-
+-void HostFrameSinkManager::OnScreenshotCaptured(
+-    const blink::SameDocNavigationScreenshotDestinationToken& destination_token,
+-    std::unique_ptr<CopyOutputResult> copy_output_result) {
+-  auto it = screenshot_destinations_.find(destination_token);
+-  if (it == screenshot_destinations_.end()) {
+-    return;
+-  }
+-  auto callback = std::move(it->second);
+-  screenshot_destinations_.erase(it);
+-  std::move(callback).Run(std::move(copy_output_result));
+-}
+-
+-void HostFrameSinkManager::OnVizTouchStateAvailable(
+-    base::ReadOnlySharedMemoryRegion region) {
+-  DCHECK(!viz_touch_state_ro_mapping_.IsValid());
+-  if (!region.IsValid()) {
+-    DLOG(ERROR) << "Received invalid ReadOnlySharedMemoryRegion from Viz.";
+-    return;
+-  }
+-
+-  viz_touch_state_ro_mapping_ = region.Map();
+-  if (!viz_touch_state_ro_mapping_.IsValid()) {
+-    DLOG(ERROR) << "Failed to map VizTouchState shared memory.";
+-    return;
+-  }
+-}
+-
+-void HostFrameSinkManager::OnViewTransitionResourcesCaptured(
+-    const blink::ViewTransitionToken& transition_token) {
+-  auto it = view_transition_callbacks_.find(transition_token);
+-  if (it == view_transition_callbacks_.end()) {
+-    return;
+-  }
+-
+-  auto closure = std::move(it->second);
+-  view_transition_callbacks_.erase(it);
+-  std::move(closure).Run();
+-}
+-
+-#if BUILDFLAG(IS_ANDROID)
+-uint32_t HostFrameSinkManager::CacheBackBufferForRootSink(
+-    const FrameSinkId& root_sink_id) {
+-  auto it = frame_sink_data_map_.find(root_sink_id);
+-  CHECK(it != frame_sink_data_map_.end());
+-  DCHECK(it->second.is_root);
+-  DCHECK(it->second.IsFrameSinkRegistered());
+-  DCHECK(frame_sink_manager_remote_);
+-
+-  uint32_t cache_id = next_cache_back_buffer_id_++;
+-  frame_sink_manager_remote_->CacheBackBuffer(cache_id, root_sink_id);
+-  return cache_id;
+-}
+-
+-void HostFrameSinkManager::EvictCachedBackBuffer(uint32_t cache_id) {
+-  DCHECK(frame_sink_manager_remote_);
+-
+-  if (cache_id < min_valid_cache_back_buffer_id_) {
+-    return;
+-  }
+-
+-  // This synchronous call ensures that the GL context/surface that draw to
+-  // the platform window (eg. XWindow or HWND) get destroyed before the
+-  // platform window is destroyed.
+-  mojo::SyncCallRestrictions::ScopedAllowSyncCall allow_sync_call;
+-  frame_sink_manager_remote_->EvictBackBuffer(cache_id);
+-}
+-#endif
+-
+-void HostFrameSinkManager::CreateHitTestQueryForSynchronousCompositor(
+-    const FrameSinkId& frame_sink_id) {
+-  display_hit_test_query_[frame_sink_id] =
+-      std::make_unique<HitTestQuery>(std::nullopt);
+-}
+-void HostFrameSinkManager::EraseHitTestQueryForSynchronousCompositor(
+-    const FrameSinkId& frame_sink_id) {
+-  display_hit_test_query_.erase(frame_sink_id);
+-}
+-
+-void HostFrameSinkManager::UpdateDebugRendererSettings(
+-    const DebugRendererSettings& debug_settings) {
+-  debug_renderer_settings_ = debug_settings;
+-  frame_sink_manager_->UpdateDebugRendererSettings(debug_settings);
+-}
+-
+-mojom::FrameSinksMetricsRecorder&
+-HostFrameSinkManager::GetFrameSinksMetricsRecorderForTest() {
+-  if (metrics_recorder_remote_) {
+-    return *metrics_recorder_remote_.get();
+-  }
+-
+-  CHECK(frame_sink_manager_);
+-  mojo::PendingRemote<mojom::FrameSinksMetricsRecorder> metric_recorder;
+-  frame_sink_manager_->CreateMetricsRecorderForTest(  // IN-TEST
+-      metric_recorder.InitWithNewPipeAndPassReceiver());
+-  metrics_recorder_remote_.Bind(std::move(metric_recorder));
+-
+-  return *metrics_recorder_remote_.get();
+-}
+-
+-mojom::FrameSinkManagerTestApi&
+-HostFrameSinkManager::GetFrameSinkManagerTestApi() {
+-  if (test_api_remote_) {
+-    return *test_api_remote_.get();
+-  }
+-
+-  CHECK(frame_sink_manager_);
+-  mojo::PendingRemote<mojom::FrameSinkManagerTestApi> test_api_recorder;
+-  frame_sink_manager_->EnableFrameSinkManagerTestApi(  // IN-TEST
+-      test_api_recorder.InitWithNewPipeAndPassReceiver());
+-  test_api_remote_.Bind(std::move(test_api_recorder));
+-
+-  return *test_api_remote_.get();
+-}
+-
+-void HostFrameSinkManager::ClearUnclaimedViewTransitionResources(
+-    const blink::ViewTransitionToken& transition_token) {
+-  view_transition_callbacks_.erase(transition_token);
+-  frame_sink_manager_->ClearUnclaimedViewTransitionResources(transition_token);
+-}
+-
+ HostFrameSinkManager::FrameSinkData::FrameSinkData() = default;
+ 
+ HostFrameSinkManager::FrameSinkData::FrameSinkData(FrameSinkData&& other) =
+diff --git a/components/viz/host/host_frame_sink_manager.h b/components/viz/host/host_frame_sink_manager.h
+index f7d8fc238c..3ca0b0a2b3 100644
+--- a/components/viz/host/host_frame_sink_manager.h
++++ b/components/viz/host/host_frame_sink_manager.h
+@@ -24,14 +24,12 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/observer_list.h"
+ #include "base/time/time.h"
+-#include "components/input/render_input_router.mojom.h"
+ #include "components/viz/common/hit_test/hit_test_data_provider.h"
+ #include "components/viz/common/hit_test/hit_test_query.h"
+ #include "components/viz/common/hit_test/hit_test_region_observer.h"
+ #include "components/viz/common/input/viz_touch_state.h"
+ #include "components/viz/common/surfaces/frame_sink_bundle_id.h"
+ #include "components/viz/common/surfaces/frame_sink_id.h"
+-#include "components/viz/host/client_frame_sink_video_capturer.h"
+ #include "components/viz/host/host_frame_sink_client.h"
+ #include "components/viz/host/viz_host_export.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+@@ -39,8 +37,6 @@
+ #include "mojo/public/cpp/bindings/receiver.h"
+ #include "mojo/public/cpp/bindings/remote.h"
+ #include "services/viz/privileged/mojom/compositing/frame_sink_manager.mojom.h"
+-#include "services/viz/privileged/mojom/compositing/frame_sink_manager_test_api.mojom.h"
+-#include "services/viz/privileged/mojom/compositing/frame_sinks_metrics_recorder.mojom.h"
+ #include "services/viz/public/mojom/compositing/frame_sink_bundle.mojom.h"
+ 
+ namespace base {
+@@ -160,9 +156,7 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+   void CreateCompositorFrameSink(
+       const FrameSinkId& frame_sink_id,
+       mojo::PendingReceiver<mojom::CompositorFrameSink> receiver,
+-      mojo::PendingRemote<mojom::CompositorFrameSinkClient> client,
+-      input::mojom::RenderInputRouterConfigPtr render_input_router_config =
+-          nullptr);
++      mojo::PendingRemote<mojom::CompositorFrameSinkClient> client);
+ 
+   // Creates a connection to control a set of related frame sinks through
+   // batched IPCs on the FrameSinkBundle and FrameSinkBundleClient interfaces.
+@@ -203,20 +197,12 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+                                     const FrameSinkId& child_frame_sink_id);
+ 
+   // Asks viz to send updates regarding video activity to |observer|.
+-  void AddVideoDetectorObserver(
+-      mojo::PendingRemote<mojom::VideoDetectorObserver> observer);
++  
+ 
+   // Creates a FrameSinkVideoCapturer instance in viz.
+-  void CreateVideoCapturer(
+-      mojo::PendingReceiver<mojom::FrameSinkVideoCapturer> receiver,
+-      uint32_t capture_version_source = 0);
++  
+ 
+-  // Creates a FrameSinkVideoCapturer instance in viz and returns a
+-  // ClientFrameSinkVideoCapturer that's connected to it. Clients should prefer
+-  // this version because ClientFrameSinkVideoCapturer is resilient to viz
+-  // crashes.
+-  std::unique_ptr<ClientFrameSinkVideoCapturer> CreateVideoCapturer(
+-      uint32_t capture_version_source = 0);
++  // (刀10.6: CreateVideoCapturer 返回 ClientFrameSinkVideoCapturer 的重载已出局。)
+ 
+   // Marks the given SurfaceIds for destruction.
+   void EvictSurfaces(const std::vector<SurfaceId>& surface_ids);
+@@ -242,20 +228,12 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+   // about inputs that it process on VizCompositor thread, and Browser can
+   // inform Viz about |TouchTransferState| to start processing input events for
+   // a sequence.
+-  void SetupRenderInputRouterDelegateConnection(
+-      const FrameSinkId& frame_sink_id,
+-      mojo::PendingAssociatedRemote<
+-          input::mojom::RenderInputRouterDelegateClient>
+-          rir_delegate_client_remote,
+-      mojo::PendingAssociatedReceiver<input::mojom::RenderInputRouterDelegate>
+-          rir_delegate_receiver);
++  // (刀10.6: SetupRenderInputRouterDelegateConnection 已出局。)
+ 
+   // Notifies the VizCompositor thread (at InputManager level) about block state
+   // changes of |render_input_routers|, for input event handling with
+   // InputVizard.
+-  void NotifyRendererBlockStateChanged(
+-      bool blocked,
+-      const std::vector<FrameSinkId>& render_input_routers);
++  // (刀10.6: NotifyRendererBlockStateChanged 已出局。)
+ 
+   // Requests input handling to be transferred back to BrowserMain thread from
+   // VizCompositor thread for cases like touch selection, overscrolls. See
+@@ -313,8 +291,7 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+ 
+   void UpdateDebugRendererSettings(const DebugRendererSettings& debug_settings);
+ 
+-  mojom::FrameSinksMetricsRecorder& GetFrameSinksMetricsRecorderForTest();
+-  mojom::FrameSinkManagerTestApi& GetFrameSinkManagerTestApi();
++  // (刀10.6: Test API getter 已出局。)
+ 
+   void ClearUnclaimedViewTransitionResources(
+       const blink::ViewTransitionToken& transition_token);
+@@ -377,8 +354,7 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+       const FrameSinkId& frame_sink_id,
+       std::optional<FrameSinkBundleId> bundle_id,
+       mojo::PendingReceiver<mojom::CompositorFrameSink> receiver,
+-      mojo::PendingRemote<mojom::CompositorFrameSinkClient> client,
+-      input::mojom::RenderInputRouterConfigPtr render_input_router_config);
++      mojo::PendingRemote<mojom::CompositorFrameSinkClient> client);
+ 
+   // Handles connection loss to |frame_sink_manager_remote_|. This should only
+   // happen when the GPU process crashes.
+@@ -402,17 +378,11 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+       const std::vector<int32_t>& thread_ids,
+       VerifyThreadIdsDoNotBelongToHostCallback callback) override;
+ #endif
+-  void OnScreenshotCaptured(
+-      const blink::SameDocNavigationScreenshotDestinationToken&
+-          destination_token,
+-      std::unique_ptr<CopyOutputResult> copy_output_result) override;
+-  void OnVizTouchStateAvailable(
+-      base::ReadOnlySharedMemoryRegion region) override;
+-  void OnViewTransitionResourcesCaptured(
+-      const blink::ViewTransitionToken& transition_token) override;
+-
+-  mojo::Remote<mojom::RendererInputRouterDelegateRegistry>
+-      rir_delegate_registry_;
++
++
++
++
++
+   // Connections to/from FrameSinkManagerImpl.
+   mojo::Remote<mojom::FrameSinkManager> frame_sink_manager_remote_;
+   // This will point to |frame_sink_manager_remote_| if using mojo or it may
+@@ -421,11 +391,9 @@ class VIZ_HOST_EXPORT HostFrameSinkManager
+   raw_ptr<mojom::FrameSinkManager> frame_sink_manager_ = nullptr;
+   mojo::Receiver<mojom::FrameSinkManagerClient>
+       frame_sink_manager_client_receiver_{this};
+-  mojo::Remote<mojom::FrameSinksMetricsRecorder> metrics_recorder_remote_;
+-  mojo::Remote<mojom::FrameSinkManagerTestApi> test_api_remote_;
++  // (刀10.6: metrics_recorder/test_api remotes 已出局。)
+ 
+-  // Shared memory for VizTouchState (Browser's read-only view).
+-  base::ReadOnlySharedMemoryMapping viz_touch_state_ro_mapping_;
++  // (刀10.6: VizTouchState mapping 已出局。)
+ 
+   // Per CompositorFrameSink data.
+   std::unordered_map<FrameSinkId, FrameSinkData, FrameSinkIdHash>
+diff --git a/gpu/BUILD.gn b/gpu/BUILD.gn
+index ecb24cee9f..a20f731041 100644
+--- a/gpu/BUILD.gn
++++ b/gpu/BUILD.gn
+@@ -55,7 +55,6 @@ component("gles2") {
+     "//gpu/command_buffer/client:gles2_cmd_helper_sources",
+     "//gpu/command_buffer/common:gles2_sources",
+     "//gpu/command_buffer/common:raster_sources",
+-    "//gpu/command_buffer/service:gles2_sources",
+   ]
+ }
+ 
+@@ -68,78 +67,7 @@ component("mailbox") {
+   public_deps = [ "//gpu/command_buffer/common:mailbox_sources" ]
+ }
+ 
+-component("webgpu") {
+-  public_deps = [ "//gpu/command_buffer/client:webgpu_sources" ]
+-}
+-
+-static_library("test_support") {
+-  testonly = true
+-  sources = [
+-    "command_buffer/client/client_test_helper.cc",
+-    "command_buffer/client/client_test_helper.h",
+-    "command_buffer/client/test_shared_image_interface.cc",
+-    "command_buffer/client/test_shared_image_interface.h",
+-    "command_buffer/client/webgpu_interface_stub.cc",
+-    "command_buffer/client/webgpu_interface_stub.h",
+-    "command_buffer/client/webgpu_interface_stub_autogen.h",
+-    "command_buffer/client/webgpu_interface_stub_impl_autogen.h",
+-    "command_buffer/service/copy_texture_chromium_mock.cc",
+-    "command_buffer/service/copy_texture_chromium_mock.h",
+-    "command_buffer/service/error_state_mock.cc",
+-    "command_buffer/service/error_state_mock.h",
+-    "command_buffer/service/gles2_cmd_decoder_mock.cc",
+-    "command_buffer/service/gles2_cmd_decoder_mock.h",
+-    "command_buffer/service/mocks.cc",
+-    "command_buffer/service/mocks.h",
+-    "command_buffer/service/shared_image/test_image_backing.cc",
+-    "command_buffer/service/shared_image/test_image_backing.h",
+-    "command_buffer/service/test_helper.cc",
+-    "command_buffer/service/test_helper.h",
+-    "ipc/raster_in_process_context.cc",
+-    "ipc/raster_in_process_context.h",
+-    "ipc/webgpu_in_process_context.cc",
+-    "ipc/webgpu_in_process_context.h",
+-  ]
+ 
+-  public_deps = [
+-    ":gles2",
+-    ":gpu",
+-    ":webgpu",
+-    "//gpu/command_buffer/client:gles2_interface",
+-    "//gpu/command_buffer/client:webgpu_interface",
+-    "//gpu/command_buffer/service",
+-    "//gpu/ipc:gpu_thread_holder",
+-    "//third_party/dawn/include/dawn:cpp_headers",
+-    "//third_party/dawn/src/dawn:proc",
+-  ]
+-  deps = [
+-    "//base/test:test_support",
+-    "//gpu/command_buffer/client:raster",
+-    "//gpu/command_buffer/common",
+-    "//gpu/ipc:gl_in_process_context",
+-    "//gpu/ipc/client",
+-    "//gpu/ipc/common",
+-    "//gpu/ipc/service",
+-    "//media",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//ui/gfx:test_support",
+-    "//ui/gl:gl_unittest_utils",
+-    "//ui/gl:test_support",
+-  ]
+-
+-  if (is_fuchsia) {
+-    deps += [
+-      "//third_party/fuchsia-sdk/sdk/fidl/fuchsia.sysmem2:fuchsia.sysmem2_hlcpp",
+-      "//third_party/fuchsia-sdk/sdk/pkg/sys_cpp",
+-    ]
+-  }
+-  deps += [ "//third_party/angle:translator" ]
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+ 
+ if (!is_android && !is_fuchsia && !is_chromeos && !is_ios) {
+   proto_library("gl_lpm_fuzzer_proto") {
+@@ -160,773 +88,22 @@ if (!is_android && !is_fuchsia && !is_chromeos && !is_ios) {
+     ]
+   }
+ 
+-  test("gl_lpm_shader_to_string_unittest") {
+-    sources = [ "command_buffer/tests/lpm/gl_lpm_shader_to_string_unittest.cc" ]
+-
+-    deps = [
+-      ":gl_lpm_shader_to_string",
+-      "//base/test:run_all_unittests",
+-      "//testing/gtest",
+-      "//third_party/protobuf:protobuf_full",
+-    ]
+-  }
+-
+-  fuzzer_test("gl_lpm_fuzzer") {
+-    sources = [
+-      "command_buffer/tests/gl_manager.cc",
+-      "command_buffer/tests/gl_manager.h",
+-      "command_buffer/tests/gl_test_utils.cc",
+-      "command_buffer/tests/gl_test_utils.h",
+-      "command_buffer/tests/lpm/gl_lpm_fuzzer.cc",
+-    ]
+-
+-    defines = [ "GL_GLEXT_PROTOTYPES" ]
+-
+-    if (is_mac) {
+-      frameworks = [ "IOSurface.framework" ]
+-    }
+-
+-    deps = [
+-      ":gl_lpm_fuzzer_proto",
+-      ":gl_lpm_shader_to_string",
+-      ":gles2",
+-      ":test_support",
+-      "//gpu/command_buffer/client:gles2_c_lib",
+-      "//gpu/command_buffer/client:gles2_implementation",
+-      "//gpu/command_buffer/common:gles2_utils",
+-      "//gpu/ipc:gl_in_process_context",
+-      "//gpu/ipc/service",
+-      "//testing/gtest",
+-      "//third_party/libprotobuf-mutator",
+-      "//ui/gfx",
+-      "//ui/gl",
+-      "//ui/gl/init",
+-    ]
+-
+-    if (use_ozone) {
+-      deps += [ "//ui/ozone" ]
+-    }
+-
+-    # TODO(crbug.com/505034799): Migrate to FUZZ_TEST.
+-    is_fuzztest_compatible = false
+-  }
+-}
+-
+-test("gl_tests") {
+-  use_xvfb = use_xvfb_in_this_config
+-
+-  sources = [
+-    "command_buffer/service/shared_image/egl_image_backing_factory_unittest.cc",
+-    "command_buffer/service/shared_image/gl_texture_image_backing_factory_unittest.cc",
+-    "command_buffer/service/shared_image/shared_image_copy_manager_unittest.cc",
+-    "command_buffer/service/shared_image/shared_image_factory_unittest.cc",
+-    "command_buffer/service/shared_image/shared_image_manager_unittest.cc",
+-    "command_buffer/service/shared_image/shared_image_representation_unittest.cc",
+-    "command_buffer/service/shared_image/shared_image_test_base.cc",
+-    "command_buffer/service/shared_image/shared_image_test_base.h",
+-    "command_buffer/service/shared_image/test_utils.cc",
+-    "command_buffer/service/shared_image/test_utils.h",
+-    "command_buffer/service/shared_image/wrapped_sk_image_backing_factory_unittest.cc",
+-    "command_buffer/tests/compressed_texture_test.cc",
+-    "command_buffer/tests/es3_misc_functions_unittest.cc",
+-    "command_buffer/tests/gl_angle_shader_pixel_local_storage_unittest.cc",
+-    "command_buffer/tests/gl_bgra_mipmap_unittest.cc",
+-    "command_buffer/tests/gl_bind_uniform_location_unittest.cc",
+-    "command_buffer/tests/gl_chromium_framebuffer_multisample_unittest.cc",
+-    "command_buffer/tests/gl_clear_framebuffer_unittest.cc",
+-    "command_buffer/tests/gl_copy_texture_CHROMIUM_unittest.cc",
+-    "command_buffer/tests/gl_cube_map_texture_unittest.cc",
+-    "command_buffer/tests/gl_depth_texture_unittest.cc",
+-    "command_buffer/tests/gl_deschedule_unittest.cc",
+-    "command_buffer/tests/gl_draw_buffers_unittest.cc",
+-    "command_buffer/tests/gl_dynamic_config_unittest.cc",
+-    "command_buffer/tests/gl_ext_blend_func_extended_unittest.cc",
+-    "command_buffer/tests/gl_ext_multisample_compatibility_unittest.cc",
+-    "command_buffer/tests/gl_ext_srgb_unittest.cc",
+-    "command_buffer/tests/gl_ext_window_rectangles_unittest.cc",
+-    "command_buffer/tests/gl_get_buffer_sub_data_unittest.cc",
+-    "command_buffer/tests/gl_invalidate_framebuffer_unittest.cc",
+-    "command_buffer/tests/gl_lose_context_chromium_unittest.cc",
+-    "command_buffer/tests/gl_manager.cc",
+-    "command_buffer/tests/gl_manager.h",
+-    "command_buffer/tests/gl_object_bindings_unittest.cc",
+-    "command_buffer/tests/gl_offscreen_surface_unittest.cc",
+-    "command_buffer/tests/gl_oob_attrib_unittest.cc",
+-    "command_buffer/tests/gl_pointcoord_unittest.cc",
+-    "command_buffer/tests/gl_program_unittest.cc",
+-    "command_buffer/tests/gl_query_unittest.cc",
+-    "command_buffer/tests/gl_readback_unittest.cc",
+-    "command_buffer/tests/gl_request_extension_unittest.cc",
+-    "command_buffer/tests/gl_set_aggressively_free_resources_unittest.cc",
+-    "command_buffer/tests/gl_stream_draw_unittest.cc",
+-    "command_buffer/tests/gl_test_service_helper.cc",
+-    "command_buffer/tests/gl_test_service_helper.h",
+-    "command_buffer/tests/gl_test_setup_helper.cc",
+-    "command_buffer/tests/gl_test_setup_helper.h",
+-    "command_buffer/tests/gl_test_utils.cc",
+-    "command_buffer/tests/gl_test_utils.h",
+-    "command_buffer/tests/gl_tests_main.cc",
+-    "command_buffer/tests/gl_texture_storage_unittest.cc",
+-    "command_buffer/tests/gl_unallocated_texture_unittest.cc",
+-    "command_buffer/tests/gl_unittest.cc",
+-    "command_buffer/tests/gl_virtual_contexts_ext_window_rectangles_unittest.cc",
+-    "command_buffer/tests/gl_virtual_contexts_unittest.cc",
+-    "command_buffer/tests/gl_webgl_multi_draw_test.cc",
+-    "command_buffer/tests/occlusion_query_unittest.cc",
+-    "config/gpu_info_collector_gl_test.cc",
+-    "ipc/client/gpu_context_tests.h",
+-    "ipc/client/gpu_in_process_context_tests.cc",
+-    "ipc/client/raster_in_process_context_tests.cc",
+-  ]
+-
+-  # Simply loading the Vulkan driver leaks crbug.com/1134681
+-  if (use_dawn && !is_lsan) {
+-    sources += [
+-      "command_buffer/service/webgpu_decoder_unittest.cc",
+-      "command_buffer/tests/shared_image_gl_backing_produce_dawn_unittest.cc",
+-      "command_buffer/tests/webgpu_mailbox_unittest.cc",
+-      "command_buffer/tests/webgpu_test.cc",
+-      "command_buffer/tests/webgpu_test.h",
+-    ]
+-  }
+-
+-  defines = [ "GL_GLEXT_PROTOTYPES" ]
+-
+-  deps = [
+-    ":gles2",
+-    ":test_support",
+-    "//base",
+-    "//base/test:test_support",
+-    "//cc:test_support",
+-    "//cc/paint",
+-    "//components/viz/test:test_support",
+-    "//gpu/command_buffer/client:gles2_c_lib",
+-    "//gpu/command_buffer/client:gles2_implementation",
+-    "//gpu/command_buffer/client:raster",
+-    "//gpu/command_buffer/client:webgpu",
+-    "//gpu/command_buffer/common:gles2_utils",
+-    "//gpu/ipc:gl_in_process_context",
+-    "//gpu/ipc/host",
+-    "//gpu/ipc/service",
+-    "//gpu/vulkan:buildflags",
+-    "//gpu/webgpu:common",
+-    "//mojo/core/embedder",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//third_party/libyuv",
+-    "//ui/gfx",
+-    "//ui/gfx:test_support",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl:test_support",
+-    "//ui/gl/init",
+-  ]
+-
+-  deps += [ "//third_party/angle:translator" ]
+-
+-  if (use_ozone) {
+-    if (enable_vulkan) {
+-      sources +=
+-          [ "command_buffer/service/drm_modifiers_filter_vulkan_unittest.cc" ]
+-    }
+-    deps += [ "//ui/ozone" ]
+-    sources += [ "command_buffer/service/shared_image/ozone_image_backing_factory_unittest.cc" ]
+-  }
+-
+-  if (enable_vulkan) {
+-    deps += [ "//gpu/vulkan/init" ]
+-  }
+-
+-  libs = []
+-
+-  if (is_android) {
+-    libs += [ "android" ]
+-    deps += [ "//ui/android:ui_java" ]
+-    sources += [ "command_buffer/service/shared_image/ahardwarebuffer_image_backing_factory_unittest.cc" ]
+-  } else if (is_apple) {
+-    frameworks = [ "IOSurface.framework" ]
+-    sources += [ "command_buffer/service/shared_image/iosurface_image_backing_factory_unittest.cc" ]
+-  } else if (is_win) {
+-    libs += [ "d3d12.lib" ]
+-    libs += [ "d3d11.lib" ]
+-    deps += [
+-      "//third_party/microsoft_dxheaders:dxguids",
+-      "//ui/platform_window",
+-      "//ui/platform_window:platform_impls",
+-    ]
+-    sources += [
+-      "command_buffer/service/dxgi_shared_handle_manager_unittest.cc",
+-      "command_buffer/service/shared_image/d3d_image_backing_factory_unittest.cc",
+-      "command_buffer/service/shared_image/dcomp_image_backing_factory_unittest.cc",
+-    ]
+-  } else if (is_linux) {
+-    # Simply loading the Vulkan driver leaks crbug.com/1134681
+-    # CFI error in third_party/vulkan_memory_allocator crbug.com/1139916
+-    if (enable_vulkan && !is_lsan && !is_cfi) {
+-      sources += [ "command_buffer/service/shared_image/external_vk_image_backing_factory_unittest.cc" ]
+-    }
+-  }
+-
+-  # Simply loading the Vulkan driver leaks crbug.com/1134681
+-  if (is_linux && !is_lsan) {
+-    sources += [ "command_buffer/service/shared_image/angle_vulkan_image_backing_factory_unittest.cc" ]
+-  }
+-
+-  if (use_dawn || skia_use_dawn) {
+-    deps += [
+-      "//third_party/dawn/src/dawn:cpp",
+-      "//third_party/dawn/src/dawn:proc",
+-      "//third_party/dawn/src/dawn/native",
+-    ]
+-
+-    sources += [
+-      "command_buffer/service/shared_image/dawn_image_backing_factory_unittest.cc",
+-      "command_buffer/service/shared_image/dawn_image_representation_unittest_common.cc",
+-      "command_buffer/service/shared_image/dawn_image_representation_unittest_common.h",
+-    ]
+-  }
+-
+-  data_deps = [ "//testing/buildbot/filters:gl_tests_filters" ]
+-
+-  if (is_android && enable_chrome_android_internal) {
+-    data_deps += [ "//clank/build/bot/filters:gl_tests_filters" ]
+-  }
+-
+-  if (is_chromeos) {
+-    deps += [ "//ui/gfx/linux:gbm" ]
+-  }
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-test("gpu_unittests") {
+-  use_xvfb = use_xvfb_in_this_config
+-
+-  sources = [
+-    "command_buffer/client/buffer_tracker_unittest.cc",
+-    "command_buffer/client/client_discardable_manager_unittest.cc",
+-    "command_buffer/client/client_shared_image_unittest.cc",
+-    "command_buffer/client/cmd_buffer_helper_test.cc",
+-    "command_buffer/client/command_buffer_direct_locked.cc",
+-    "command_buffer/client/command_buffer_direct_locked.h",
+-    "command_buffer/client/fenced_allocator_test.cc",
+-    "command_buffer/client/gles2_implementation_unittest.cc",
+-    "command_buffer/client/gles2_implementation_unittest_autogen.h",
+-    "command_buffer/client/internal/mappable_buffer_shared_memory_unittest.cc",
+-    "command_buffer/client/internal/mappable_buffer_test_template.h",
+-    "command_buffer/client/mapped_memory_unittest.cc",
+-    "command_buffer/client/mock_transfer_buffer.cc",
+-    "command_buffer/client/mock_transfer_buffer.h",
+-    "command_buffer/client/program_info_manager_unittest.cc",
+-    "command_buffer/client/query_tracker_unittest.cc",
+-    "command_buffer/client/raster_implementation_unittest.cc",
+-    "command_buffer/client/raster_implementation_unittest_autogen.h",
+-    "command_buffer/client/readback_buffer_shadow_tracker_unittest.cc",
+-    "command_buffer/client/ring_buffer_test.cc",
+-    "command_buffer/client/shared_image_pool_unittest.cc",
+-    "command_buffer/client/transfer_buffer_cmd_copy_helpers_unittest.cc",
+-    "command_buffer/client/transfer_buffer_unittest.cc",
+-    "command_buffer/client/vertex_array_object_manager_unittest.cc",
+-    "command_buffer/client/webgpu_implementation_unittest.cc",
+-    "command_buffer/client/webgpu_implementation_unittest_autogen.h",
+-    "command_buffer/common/buffer_unittest.cc",
+-    "command_buffer/common/command_buffer_shared_test.cc",
+-    "command_buffer/common/debug_marker_manager_unittest.cc",
+-    "command_buffer/common/discardable_handle_unittest.cc",
+-    "command_buffer/common/gles2_cmd_format_test.cc",
+-    "command_buffer/common/gles2_cmd_format_test_autogen.h",
+-    "command_buffer/common/gles2_cmd_utils_unittest.cc",
+-    "command_buffer/common/id_allocator_test.cc",
+-    "command_buffer/common/raster_cmd_format_test.cc",
+-    "command_buffer/common/raster_cmd_format_test_autogen.h",
+-    "command_buffer/common/shared_image_usage_unittest.cc",
+-    "command_buffer/common/shm_count_unittest.cc",
+-    "command_buffer/common/unittest_main.cc",
+-    "command_buffer/common/webgpu_cmd_format_test.cc",
+-    "command_buffer/common/webgpu_cmd_format_test_autogen.h",
+-    "command_buffer/service/buffer_manager_unittest.cc",
+-    "command_buffer/service/client_service_map_unittest.cc",
+-    "command_buffer/service/command_buffer_service_unittest.cc",
+-    "command_buffer/service/common_decoder_unittest.cc",
+-    "command_buffer/service/context_group_unittest.cc",
+-    "command_buffer/service/context_state_test_helpers.cc",
+-    "command_buffer/service/context_state_test_helpers.h",
+-    "command_buffer/service/context_state_test_helpers_autogen.h",
+-    "command_buffer/service/context_state_unittest.cc",
+-    "command_buffer/service/feature_info_unittest.cc",
+-    "command_buffer/service/framebuffer_manager_unittest.cc",
+-    "command_buffer/service/gl_context_mock.cc",
+-    "command_buffer/service/gl_context_mock.h",
+-    "command_buffer/service/gl_context_virtual_unittest.cc",
+-    "command_buffer/service/gl_surface_mock.cc",
+-    "command_buffer/service/gl_surface_mock.h",
+-    "command_buffer/service/gles2_cmd_decoder_unittest_base.cc",
+-    "command_buffer/service/gles2_cmd_decoder_unittest_base.h",
+-    "command_buffer/service/gpu_service_test.cc",
+-    "command_buffer/service/gpu_service_test.h",
+-    "command_buffer/service/gpu_tracer_unittest.cc",
+-    "command_buffer/service/gr_cache_controller_unittest.cc",
+-    "command_buffer/service/gr_shader_cache_unittest.cc",
+-    "command_buffer/service/id_manager_unittest.cc",
+-    "command_buffer/service/indexed_buffer_binding_host_unittest.cc",
+-    "command_buffer/service/memory_program_cache_unittest.cc",
+-    "command_buffer/service/multi_draw_manager_unittest.cc",
+-    "command_buffer/service/passthrough_program_cache_unittest.cc",
+-    "command_buffer/service/program_cache_unittest.cc",
+-    "command_buffer/service/program_manager_unittest.cc",
+-    "command_buffer/service/query_manager_unittest.cc",
+-    "command_buffer/service/raster_decoder_unittest.cc",
+-    "command_buffer/service/raster_decoder_unittest_1.cc",
+-    "command_buffer/service/raster_decoder_unittest_base.cc",
+-    "command_buffer/service/raster_decoder_unittest_base.h",
+-    "command_buffer/service/raster_decoder_unittest_context_lost.cc",
+-    "command_buffer/service/renderbuffer_manager_unittest.cc",
+-    "command_buffer/service/retaining_one_shot_timer_holder_unittest.cc",
+-    "command_buffer/service/scheduler_unittest.cc",
+-    "command_buffer/service/service_transfer_cache_unittest.cc",
+-    "command_buffer/service/service_utils_unittest.cc",
+-    "command_buffer/service/shader_manager_unittest.cc",
+-    "command_buffer/service/shader_translator_cache_unittest.cc",
+-    "command_buffer/service/shader_translator_unittest.cc",
+-    "command_buffer/service/shared_context_state_unittest.cc",
+-    "command_buffer/service/shared_image/compound_image_backing_unittest.cc",
+-    "command_buffer/service/shared_image/gl_repack_utils_unittest.cc",
+-    "command_buffer/service/shared_image/gl_texture_holder_unittest.cc",
+-    "command_buffer/service/shared_memory_region_wrapper_unittest.cc",
+-    "command_buffer/service/sync_point_manager_unittest.cc",
+-    "command_buffer/service/task_graph_unittest.cc",
+-    "command_buffer/service/texture_manager_unittest.cc",
+-    "command_buffer/service/transfer_buffer_manager_unittest.cc",
+-    "command_buffer/service/transform_feedback_manager_unittest.cc",
+-    "command_buffer/service/vertex_array_manager_unittest.cc",
+-    "command_buffer/service/vertex_attrib_manager_unittest.cc",
+-    "config/gpu_blocklist_unittest.cc",
+-    "config/gpu_control_list_entry_unittest.cc",
+-    "config/gpu_control_list_testing_arrays_and_structs_autogen.h",
+-    "config/gpu_control_list_testing_autogen.cc",
+-    "config/gpu_control_list_testing_autogen.h",
+-    "config/gpu_control_list_testing_data.h",
+-    "config/gpu_control_list_testing_entry_enums_autogen.h",
+-    "config/gpu_control_list_testing_exceptions_autogen.h",
+-    "config/gpu_control_list_unittest.cc",
+-    "config/gpu_control_list_version_unittest.cc",
+-    "config/gpu_driver_bug_list_unittest.cc",
+-    "config/gpu_info_collector_unittest.cc",
+-    "config/gpu_info_unittest.cc",
+-    "config/gpu_preferences_unittest.cc",
+-    "config/gpu_test_config_unittest.cc",
+-    "config/gpu_test_expectations_parser_unittest.cc",
+-    "config/gpu_util_unittest.cc",
+-    "ipc/client/command_buffer_proxy_impl_unittest.cc",
+-    "ipc/common/mojom_traits_unittest.cc",
+-    "ipc/host/gpu_disk_cache_unittest.cc",
+-    "ipc/service/gpu_channel_test_common.cc",
+-    "ipc/service/gpu_channel_test_common.h",
+-    "ipc/service/gpu_watchdog_thread_unittest.cc",
+-  ]
+-
+-  if (enable_validating_command_decoder) {
+-    sources += [
+-      "command_buffer/service/gles2_cmd_decoder_unittest.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest.h",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_1.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_1_autogen.h",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_2.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_2_autogen.h",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_3.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_3_autogen.h",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_4.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_4_autogen.h",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_attribs.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_buffers.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_context_lost.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_context_state.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_drawing.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_extensions.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_framebuffers.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_programs.cc",
+-      "command_buffer/service/gles2_cmd_decoder_unittest_textures.cc",
+-    ]
+-  }
+-
+-  if (is_mac) {
+-    sources += [
+-      "command_buffer/client/internal/mappable_buffer_io_surface_unittest.cc",
+-    ]
+-  }
+-
+-  if (is_apple) {
+-    sources += [
+-      "ipc/service/image_transport_surface_overlay_mac.h",
+-      "ipc/service/image_transport_surface_overlay_mac.mm",
+-      "ipc/service/image_transport_surface_overlay_mac_unittest.mm",
+-    ]
+-  }
+-
+-  if (is_linux || is_chromeos || use_ozone) {
+-    sources += [ "command_buffer/client/internal/mappable_buffer_native_pixmap_unittest.cc" ]
+-  }
+-
+-  if (is_win) {
+-    sources +=
+-        [ "command_buffer/client/internal/mappable_buffer_dxgi_unittest.cc" ]
+-  }
+-
+-  if (is_android) {
+-    sources +=
+-        [ "command_buffer/client/internal/mappable_buffer_ahb_unittest.cc" ]
+-  }
+-
+-  if (is_linux || is_chromeos || is_android) {
+-    sources += [ "command_buffer/service/gpu_fence_manager_unittest.cc" ]
+-  }
+-
+-  # On official builds angle doesn't build null backend that is required for
+-  # unit tests. We don't check directly for angle_enable_null to avoid
+-  # accidental skipping all the tests if angle logic to build null backend will
+-  # change.
+-  if (!is_official_build) {
+-    assert(angle_enable_null)
+-    sources += [
+-      "command_buffer/service/gles2_cmd_decoder_passthrough_unittest_buffers.cc",
+-      "command_buffer/service/gles2_cmd_decoder_passthrough_unittest_commands.cc",
+-      "command_buffer/service/gles2_cmd_decoder_passthrough_unittest_drawing.cc",
+-      "command_buffer/service/gles2_cmd_decoder_passthrough_unittest_framebuffers.cc",
+-      "command_buffer/service/gles2_cmd_decoder_passthrough_unittest_textures.cc",
+-      "ipc/service/gpu_channel_unittest.cc",
+-    ]
+-
+-    if (!is_ios) {
+-      # This test depends on the test trace processor which is not currently
+-      # a dependency on iOS. See //base/test:test_support.
+-      sources += [ "ipc/service/gpu_channel_manager_unittest.cc" ]
+-    }
+-  }
+-
+-  if (use_dawn) {
+-    sources += [
+-      "command_buffer/service/dawn_caching_interface_unittest.cc",
+-      "command_buffer/service/dawn_platform_unittest.cc",
+-      "command_buffer/service/gpu_persistent_cache_unittest.cc",
+-      "config/webgpu_blocklist_unittest.cc",
+-    ]
+-  }
+-
+-  if (skia_use_dawn) {
+-    sources += [ "command_buffer/service/graphite_shared_context_unittest.cc" ]
+-
+-    if (is_win) {
+-      sources += [ "ipc/service/dawn_texture_solid_color_pool_unittest.cc" ]
+-    }
+-  }
+-
+-  configs += [ "//build/config:precompiled_headers" ]
+-
+-  deps = [
+-    ":gles2",
+-    ":test_support",
+-    "//base",
+-    "//base/test:test_support",
+-    "//cc:test_support",
+-    "//cc/paint",
+-    "//components/persistent_cache",
+-    "//components/viz/common/resources:shared_image_format",
+-    "//components/viz/test:test_support",
+-    "//gpu/command_buffer/client:gles2_c_lib",
+-    "//gpu/command_buffer/client:gles2_implementation",
+-    "//gpu/command_buffer/client:raster",
+-    "//gpu/command_buffer/client:webgpu",
+-    "//gpu/command_buffer/client/internal",
+-    "//gpu/command_buffer/common",
+-    "//gpu/command_buffer/common:gles2_utils",
+-    "//gpu/command_buffer/service",
+-    "//gpu/config",
+-    "//gpu/ipc:gl_in_process_context",
+-    "//gpu/ipc/client",
+-    "//gpu/ipc/common",
+-    "//gpu/ipc/common:test_interfaces",
+-    "//gpu/ipc/common:test_support",
+-    "//gpu/ipc/host",
+-    "//gpu/ipc/service",
+-    "//gpu/vulkan:buildflags",
+-    "//mojo/core/embedder",
+-    "//mojo/public/cpp/bindings",
+-    "//mojo/public/cpp/test_support:test_utils",
+-    "//net:test_support",
+-    "//skia",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//third_party/angle:includes",
+-    "//third_party/re2",
+-    "//ui/gfx",
+-    "//ui/gfx:test_support",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl:gl_unittest_utils",
+-    "//ui/gl:test_support",
+-    "//url",
+-  ]
+-
+-  deps += [ "//third_party/angle:translator" ]
+-
+-  if (is_android) {
+-    deps += [ "//ui/android:ui_java" ]
+-  }
+-
+-  if (use_dawn) {
+-    deps += [
+-      "//gpu/config",
+-      "//net:test_support",
+-      "//third_party/dawn/src/dawn:cpp",
+-      "//third_party/dawn/src/dawn:proc",
+-      "//third_party/dawn/src/dawn/native",
+-    ]
+-  }
+-
+-  if (skia_use_dawn && is_win) {
+-    deps += [ "//media/base/win:test_support" ]
+-  }
+-
+-  if (use_ozone) {
+-    deps += [ "//ui/ozone" ]
+-  }
+-
+-  if (is_ios) {
+-    bundle_deps =
+-        [ "//testing/buildbot/filters:gpu_unittests_filters_bundle_data" ]
+-  }
+-
+-  if (is_apple) {
+-    deps += [ "//ui/accelerated_widget_mac" ]
+-  }
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-test("gpu_perftests") {
+-  sources = [
+-    "perftests/measurements.cc",
+-    "perftests/measurements.h",
+-    "perftests/run_all_tests.cc",
+-    "perftests/texture_upload_perftest.cc",
+-  ]
+-
+-  deps = [
+-    "//base",
+-    "//base/test:test_support",
+-    "//gpu/command_buffer/client:gles2_implementation",
+-    "//gpu/command_buffer/service",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//testing/perf",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl/init",
+-  ]
+-
+-  if (use_ozone) {
+-    deps += [
+-      "//ui/base:features",
+-      "//ui/ozone",
+-    ]
+-  }
+-
+-  data_deps = [
+-    # Needed for isolate script to execute.
+-    "//testing:run_perf_test",
+-    "//third_party/angle:includes",
+-  ]
+ 
+-  # This target should not require the Chrome executable to run.
+-  assert_no_deps = [ "//chrome" ]
+ }
+ 
+-test("command_buffer_perftests") {
+-  sources = [
+-    "command_buffer/tests/decoder_perftest.cc",
+-    "perftests/run_all_tests.cc",
+-  ]
+ 
+-  deps = [
+-    ":gpu",
+-    "//base",
+-    "//base/test:test_support",
+-    "//gpu/command_buffer/client",
+-    "//gpu/command_buffer/client:gles2_cmd_helper",
+-    "//gpu/command_buffer/client:gles2_implementation",
+-    "//gpu/command_buffer/service",
+-    "//gpu/command_buffer/service:gles2",
+-    "//testing/gtest",
+-    "//testing/perf",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl/init",
+-  ]
+ 
+-  if (use_ozone) {
+-    deps += [
+-      "//ui/base:features",
+-      "//ui/ozone",
+-    ]
+-  }
+-
+-  data_deps = [
+-    # Needed for isolate script to execute.
+-    "//testing:run_perf_test",
+-  ]
+ 
+-  # This target should not require the Chrome executable to run.
+-  assert_no_deps = [ "//chrome" ]
+-}
+ 
+ # We allow validating command decoder fuzzer on linux for better coverage.
+ if (enable_validating_command_decoder || is_linux) {
+-  fuzzer_test("gpu_fuzzer") {
+-    sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+-
+-    deps = [
+-      ":gles2",
+-      "//base",
+-      "//base:i18n",
+-      "//gpu/command_buffer/service",
+-      "//ui/gfx/geometry",
+-      "//ui/gl",
+-      "//ui/gl:test_support",
+-    ]
+-
+-    libfuzzer_options = [ "max_len=16384" ]
+-
+-    if (use_ozone) {
+-      deps += [ "//ui/ozone" ]
+-    }
+-  }
+ }
+ 
+-fuzzer_test("gpu_angle_passthrough_fuzzer") {
+-  sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+-
+-  defines = [
+-    "GPU_FUZZER_USE_ANGLE",
+-    "GPU_FUZZER_USE_PASSTHROUGH_CMD_DECODER",
+-  ]
+-
+-  deps = [
+-    ":gles2",
+-    "//base",
+-    "//gpu/command_buffer/service",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl:test_support",
+-  ]
+-
+-  if (use_ozone) {
+-    deps += [ "//ui/ozone" ]
+-  }
+-
+-  libfuzzer_options = [ "max_len=16384" ]
+-}
+-
+-fuzzer_test("gpu_swangle_passthrough_fuzzer") {
+-  sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+-
+-  defines = [
+-    "GPU_FUZZER_USE_ANGLE",
+-    "GPU_FUZZER_USE_SWANGLE",
+-    "GPU_FUZZER_USE_PASSTHROUGH_CMD_DECODER",
+-  ]
+-
+-  deps = [
+-    ":gles2",
+-    "//base",
+-    "//gpu/command_buffer/service",
+-    "//ui/gfx/geometry",
+-    "//ui/gl",
+-    "//ui/gl:test_support",
+-  ]
+-
+-  if (use_ozone) {
+-    deps += [ "//ui/ozone" ]
+-  }
+ 
+-  libfuzzer_options = [ "max_len=16384" ]
+-}
+ 
+ if (is_linux || is_chromeos) {
+-  fuzzer_test("gpu_raster_fuzzer") {
+-    sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+-
+-    defines = [ "GPU_FUZZER_USE_RASTER_DECODER" ]
+-
+-    deps = [
+-      ":gles2",
+-      "//base",
+-      "//gpu/command_buffer/service",
+-      "//ui/gfx/geometry",
+-      "//ui/gl",
+-      "//ui/gl:test_support",
+-    ]
+-
+-    if (use_ozone) {
+-      deps += [ "//ui/ozone" ]
+-    }
+-
+-    libfuzzer_options = [ "max_len=16384" ]
+-  }
+-
+-  fuzzer_test("gpu_raster_passthrough_fuzzer") {
+-    sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+ 
+-    defines = [
+-      "GPU_FUZZER_USE_ANGLE",
+-      "GPU_FUZZER_USE_RASTER_DECODER",
+-      "GPU_FUZZER_USE_PASSTHROUGH_CMD_DECODER",
+-    ]
+ 
+-    deps = [
+-      ":gles2",
+-      "//base",
+-      "//gpu/command_buffer/service",
+-      "//ui/gfx/geometry",
+-      "//ui/gl",
+-      "//ui/gl:test_support",
+-    ]
+-
+-    if (use_ozone) {
+-      deps += [ "//ui/ozone" ]
+-    }
+-
+-    libfuzzer_options = [ "max_len=16384" ]
+-  }
+-
+-  fuzzer_test("gpu_raster_swangle_passthrough_fuzzer") {
+-    sources = [ "command_buffer/tests/fuzzer_main.cc" ]
+-
+-    defines = [
+-      "GPU_FUZZER_USE_ANGLE",
+-      "GPU_FUZZER_USE_SWANGLE",
+-      "GPU_FUZZER_USE_PASSTHROUGH_CMD_DECODER",
+-      "GPU_FUZZER_USE_RASTER_DECODER",
+-    ]
+-
+-    deps = [
+-      ":gles2",
+-      "//base",
+-      "//gpu/command_buffer/service",
+-      "//ui/gfx/geometry",
+-      "//ui/gl",
+-      "//ui/gl:test_support",
+-    ]
+-
+-    if (use_ozone) {
+-      deps += [ "//ui/ozone" ]
+-    }
+-
+-    libfuzzer_options = [ "max_len=16384" ]
+-  }
+ }
+ 
+ # MojoLPM fuzzer for gpu::SharedImageStub::ExecuteDeferredRequest (GPU process).
+@@ -957,7 +134,6 @@ mojolpm_fuzzer_test("shared_image_stub_mojolpm_fuzzer") {
+     "//components/viz/common/resources:shared_image_format",
+     "//components/viz/test:test_support",
+     "//gpu/command_buffer/common",
+-    "//gpu/command_buffer/service",
+     "//gpu/config",
+     "//gpu/ipc/common",
+     "//gpu/ipc/common:test_support",
+diff --git a/gpu/command_buffer/common/BUILD.gn b/gpu/command_buffer/common/BUILD.gn
+index fad6c570f2..e7d3232e30 100644
+--- a/gpu/command_buffer/common/BUILD.gn
++++ b/gpu/command_buffer/common/BUILD.gn
+@@ -42,9 +42,6 @@ group("mailbox") {
+   }
+ }
+ 
+-group("webgpu") {
+-  public_deps = [ ":webgpu_sources" ]
+-}
+ 
+ source_set("common_sources") {
+   visibility = [ ":common" ]
+@@ -180,36 +177,6 @@ source_set("raster_sources") {
+   ]
+ }
+ 
+-source_set("webgpu_sources") {
+-  visibility = [ "//gpu/*" ]
+-
+-  sources = [
+-    "dawn_memory_transfer_handle.h",
+-    "webgpu_cmd_enums.h",
+-    "webgpu_cmd_format.cc",
+-    "webgpu_cmd_format.h",
+-    "webgpu_cmd_format_autogen.h",
+-    "webgpu_cmd_ids.h",
+-    "webgpu_cmd_ids_autogen.h",
+-  ]
+-
+-  configs += [ "//gpu:webgpu_implementation" ]
+-
+-  deps = [
+-    ":gles2_utils",
+-    "//base",
+-  ]
+-
+-  public_deps = [
+-    ":common",
+-    "//ui/gl:buildflags",
+-  ]
+-
+-  if (use_dawn) {
+-    deps += [ "//third_party/dawn/src/dawn/wire" ]
+-    public_deps += [ "//third_party/dawn/src/dawn/wire:headers" ]
+-  }
+-}
+ 
+ component("gles2_utils") {
+   sources = [
+diff --git a/gpu/config/BUILD.gn b/gpu/config/BUILD.gn
+index 09bedb08fc..38abf8b4c0 100644
+--- a/gpu/config/BUILD.gn
++++ b/gpu/config/BUILD.gn
+@@ -120,8 +120,6 @@ component("config") {
+     "gpu_util.h",
+     "skia_limits.cc",
+     "skia_limits.h",
+-    "webgpu_blocklist_impl.cc",
+-    "webgpu_blocklist_impl.h",
+   ]
+ 
+   if (is_fuchsia) {
+@@ -134,10 +132,10 @@ component("config") {
+ 
+   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+ 
+-  public_deps = [
+-    "//components/crash/core/common:crash_key",
+-    "//third_party/dawn/include/dawn:cpp_headers",
+-  ]
++  public_deps = [ "//components/crash/core/common:crash_key" ]
++  # 刀11.5 (2026-09-14): dawn:cpp_headers 出局——gpu_info_collector 的 dawn 面
++  # 全部在 #if BUILDFLAG(USE_DAWN) 门内 (本构建 use_dawn=false), 仅 GN 解析
++  # 层需要此边, 拔除。
+ 
+   if (enable_vulkan) {
+     public_deps += [ "//gpu/vulkan" ]
+diff --git a/gpu/config/gpu_info_collector.cc b/gpu/config/gpu_info_collector.cc
+index 76f9aa04c8..f7cc2d17cc 100644
+--- a/gpu/config/gpu_info_collector.cc
++++ b/gpu/config/gpu_info_collector.cc
+@@ -25,7 +25,9 @@
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "gpu/config/gpu_switches.h"
++#if BUILDFLAG(USE_DAWN)
+ #include "gpu/config/webgpu_blocklist_impl.h"
++#endif
+ #include "skia/buildflags.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ #include "third_party/angle/src/gpu_info_util/SystemInfo.h"  // nogncheck
+diff --git a/gpu/ipc/common/BUILD.gn b/gpu/ipc/common/BUILD.gn
+index 8529bab450..09cffe5d3f 100644
+--- a/gpu/ipc/common/BUILD.gn
++++ b/gpu/ipc/common/BUILD.gn
+@@ -223,6 +223,18 @@ mojom("surface_handle") {
+   generate_java = true
+   sources = [ "surface_handle.mojom" ]
+   cpp_typemaps = [
++    {
++      # 刀10.6 (2026-09-15): 借用注册 (同 interfaces target, 见彼处注释)。
++      types = [
++        {
++          mojom = "gfx.mojom.GpuMemoryBufferHandle"
++          cpp = "::gfx::GpuMemoryBufferHandle"
++          move_only = true
++        },
++      ]
++      traits_headers = [ "//ui/gfx/mojom/buffer_types_mojom_traits.h" ]
++      traits_public_deps = [ "//ui/gfx/mojom:shared_mojom_traits" ]
++    },
+     {
+       types = [
+         {
+@@ -281,6 +293,20 @@ mojom("interfaces") {
+   }
+ 
+   cpp_typemaps = [
++    {
++      # 刀10.6 (2026-09-15): 借用注册——exported_shared_image.mojom 引用
++      # gfx.mojom.GpuMemoryBufferHandle (use_blink 门被摘后为本框架无条件
++      # 类型), traits 归属 ui/gfx/mojom, 在此显式借用使生成器可见。
++      types = [
++        {
++          mojom = "gfx.mojom.GpuMemoryBufferHandle"
++          cpp = "::gfx::GpuMemoryBufferHandle"
++          move_only = true
++        },
++      ]
++      traits_headers = [ "//ui/gfx/mojom/buffer_types_mojom_traits.h" ]
++      traits_public_deps = [ "//ui/gfx/mojom:shared_mojom_traits" ]
++    },
+     {
+       types = [
+         {
+@@ -784,16 +810,3 @@ source_set("mojom_traits") {
+   configs += [ "//gpu:gpu_implementation" ]
+ }
+ 
+-source_set("test_support") {
+-  testonly = true
+-  sources = [
+-    "mock_command_buffer.cc",
+-    "mock_command_buffer.h",
+-    "mock_gpu_channel.cc",
+-    "mock_gpu_channel.h",
+-  ]
+-  public_deps = [
+-    ":common",
+-    "//testing/gmock",
+-  ]
+-}
+diff --git a/services/viz/privileged/mojom/BUILD.gn b/services/viz/privileged/mojom/BUILD.gn
+index bf1a536831..ae498db35d 100644
+--- a/services/viz/privileged/mojom/BUILD.gn
++++ b/services/viz/privileged/mojom/BUILD.gn
+@@ -19,7 +19,6 @@ mojom("mojom") {
+ 
+   public_deps = [
+     "//components/discardable_memory/public/mojom",
+-    "//components/viz/service/debugger/mojom",
+     "//services/viz/privileged/mojom/compositing",
+     "//services/viz/privileged/mojom/gl",
+     "//services/viz/public/mojom",
+@@ -27,20 +26,3 @@ mojom("mojom") {
+   ]
+ }
+ 
+-source_set("unit_tests") {
+-  testonly = true
+-
+-  sources = [ "mojom_traits_unittest.cc" ]
+-
+-  deps = [
+-    "//base/test:fuzztest_support",
+-    "//base/test:test_support",
+-    "//components/viz/common",
+-    "//media/capture/mojom:video_capture",
+-    "//services/service_manager/public/cpp",
+-    "//services/viz/privileged/mojom/compositing",
+-    "//testing/gtest",
+-    "//third_party/fuzztest",
+-    "//ui/gfx:test_support",
+-  ]
+-}
+diff --git a/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom b/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
+index b2c86debcc..ff32d478bf 100644
+--- a/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
++++ b/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
+@@ -11,9 +11,6 @@ import "mojo/public/mojom/base/unguessable_token.mojom";
+ import "services/viz/privileged/mojom/compositing/display_private.mojom";
+ import "services/viz/privileged/mojom/compositing/external_begin_frame_controller.mojom";
+ import "services/viz/privileged/mojom/compositing/features.mojom";
+-import "services/viz/privileged/mojom/compositing/frame_sink_manager_test_api.mojom";
+-import "services/viz/privileged/mojom/compositing/frame_sink_video_capture.mojom";
+-import "services/viz/privileged/mojom/compositing/frame_sinks_metrics_recorder.mojom";
+ import "services/viz/privileged/mojom/compositing/renderer_settings.mojom";
+ import "services/viz/public/mojom/compositing/compositor_frame_sink.mojom";
+ import "services/viz/public/mojom/compositing/copy_output_request.mojom";
+@@ -24,12 +21,9 @@ import "services/viz/public/mojom/compositing/frame_sink_id.mojom";
+ import "services/viz/public/mojom/compositing/local_surface_id.mojom";
+ import "services/viz/public/mojom/compositing/surface_id.mojom";
+ import "services/viz/public/mojom/compositing/surface_info.mojom";
+-import "services/viz/public/mojom/compositing/video_detector_observer.mojom";
+ import "services/viz/public/mojom/hit_test/aggregated_hit_test_region.mojom";
+ import "third_party/blink/public/mojom/tokens/tokens.mojom";
+-import "third_party/blink/public/mojom/widget/platform_widget.mojom";
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+-import "components/input/render_input_router.mojom";
+ 
+ // Initialization parameters for a RootCompositorFrameSink.
+ struct RootCompositorFrameSinkParams {
+@@ -147,8 +141,7 @@ interface FrameSinkManager {
+       FrameSinkId frame_sink_id,
+       FrameSinkBundleId? bundle_id,
+       pending_receiver<CompositorFrameSink> compositor_frame_sink,
+-      pending_remote<CompositorFrameSinkClient> compositor_frame_sink_client,
+-      input.mojom.RenderInputRouterConfig? config);
++      pending_remote<CompositorFrameSinkClient> compositor_frame_sink_client);
+ 
+   // Destroys CompositorFrameSink created by Create[Root]CompositorFrameSink().
+   // This function should only be used synchronously for destroying root
+@@ -167,13 +160,7 @@ interface FrameSinkManager {
+   UnregisterFrameSinkHierarchy(
+       FrameSinkId parent_frame_sink_id, FrameSinkId child_frame_sink_id);
+ 
+-  // Requests viz to notify |observer| whenever video activity is detected in
+-  // one of the clients. See viz::VideoDetector.
+-  AddVideoDetectorObserver(pending_remote<VideoDetectorObserver> observer);
+-
+-  // Creates a FrameSinkVideoCapturer instance.
+-  CreateVideoCapturer(pending_receiver<FrameSinkVideoCapturer> receiver,
+-                      uint32 capture_version_source);
++  // (刀10.6: AddVideoDetectorObserver 已随视频检测面出局。)
+ 
+   // Marks the given SurfaceIds for destruction. The client must supply a sorted
+   // `surface_ids`.
+@@ -229,26 +216,15 @@ interface FrameSinkManager {
+ 
+   // Initializes FrameSinksMetricsRecorder to enable the collection of metrics
+   // related to frame sinks.
+-  [RuntimeFeature=EnableVizTestApis]
+-  CreateMetricsRecorderForTest(
+-      pending_receiver<FrameSinksMetricsRecorder> receiver);
++  // (刀10.6: CreateMetricsRecorderForTest 已出局。)
+ 
+   // Initializes FrameSinkManagerTestApi.
+-  [RuntimeFeature=EnableVizTestApis]
+-  EnableFrameSinkManagerTestApi(
+-      pending_receiver<FrameSinkManagerTestApi> receiver);
++  // (刀10.6: EnableFrameSinkManagerTestApi 已随 viz test api 面出局。)
+ 
+   // Sets up the RendererInputRouterDelegateRegistry interface for managing
+   // RenderInputRouterDelegate connections between RenderWidgetHosts (on
+   // CrBrowserMain thread) and the InputManager (on VizCompositor thread).
+-  SetupRendererInputRouterDelegateRegistry(
+-    pending_receiver<RendererInputRouterDelegateRegistry> receiver);
+ 
+-  // Notifies list of RenderInputRouters of their block state changes for input
+-  // event handling on the VizCompositorThread.
+-  NotifyRendererBlockStateChanged(
+-    bool blocked,
+-    array<FrameSinkId> render_input_routers);
+ 
+   // Requests input handling to be transferred back to the CrBrowserMain thread
+   // from the VizCompositorThread. Safe to call even if the VizCompositorThread
+@@ -295,19 +271,7 @@ interface FrameSinkManagerClient {
+ // RenderInputRouterDelegate[Client] interface to use the same mojo pipe to
+ // send/receive information for input handling between the CrBrowserMain and the
+ // VizCompositorThread.
+-interface RendererInputRouterDelegateRegistry {
+-  // Setup the connection between the Browser (at RenderWidgetHost level) and
+-  // the VizCompositor thread (at InputManager level) in both directions to
+-  // allow transferring information from Viz to the Browser and vice versa,
+-  // when the VizCompositor thread is handling input using RenderInputRouters
+-  // with InputVizard. This connection is per FrameSinkId.
+-  SetupRenderInputRouterDelegateConnection(
+-      FrameSinkId id,
+-      pending_associated_remote<input.mojom.RenderInputRouterDelegateClient>
+-          rir_delegate_client_remote,
+-      pending_associated_receiver<input.mojom.RenderInputRouterDelegate>
+-          rir_delegate_receiver);
+-};
++// (刀10.6: RendererInputRouterDelegateRegistry interface 已出局。)
+ 
+ // Initialization parameters for CreateCompositorDisplayLink.
+   [EnableIf=is_mac]
+diff --git a/services/viz/privileged/mojom/gl/BUILD.gn b/services/viz/privileged/mojom/gl/BUILD.gn
+index 338a5a3969..9a50271d20 100644
+--- a/services/viz/privileged/mojom/gl/BUILD.gn
++++ b/services/viz/privileged/mojom/gl/BUILD.gn
+@@ -18,6 +18,7 @@ mojom("gl") {
+   parser_deps = [ "//components/viz/common:buildflags" ]
+ 
+   public_deps = [
++    "//third_party/blink/public/mojom/tokens",
+     "//components/persistent_cache/mojom",
+     "//gpu/ipc/common:interfaces",
+     "//gpu/ipc/common:surface_handle",
+diff --git a/services/viz/privileged/mojom/gl/gpu_host.mojom b/services/viz/privileged/mojom/gl/gpu_host.mojom
+index 99bce94c20..4015dbd673 100644
+--- a/services/viz/privileged/mojom/gl/gpu_host.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_host.mojom
+@@ -4,7 +4,6 @@
+ 
+ module viz.mojom;
+ 
+-import "gpu/ipc/common/gpu_disk_cache_type.mojom";
+ import "gpu/ipc/common/gpu_feature_info.mojom";
+ import "gpu/ipc/common/gpu_info.mojom";
+ import "gpu/ipc/common/surface_handle.mojom";
+@@ -15,23 +14,11 @@ import "third_party/blink/public/mojom/tokens/tokens.mojom";
+ import "ui/gfx/mojom/gpu_extra_info.mojom";
+ import "url/mojom/url.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/ep_device_info.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/ep_package_info.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_model_loader.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_compiler_context.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_context_properties.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_context_provider.mojom";
+ 
+ [EnableIf=is_win]
+ import "ui/gfx/mojom/dxgi_info.mojom";
+@@ -68,12 +55,10 @@ interface GpuHost {
+ 
+   // Tells the GPU host that the overlay info has been updated in the GPU
+   // process.
+-  [EnableIf=is_win]
+   DidUpdateOverlayInfo(gpu.mojom.OverlayInfo overlay_info);
+ 
+   // Tells the GPU host that the DXGI adapter and output information has been
+   // updated in the GPU process.
+-  [EnableIf=is_win]
+   DidUpdateDXGIInfo(gfx.mojom.DXGIInfo dxgi_info);
+ 
+   // GPU process has decided to disable GPU compositing. Host process keeps
+@@ -81,10 +66,8 @@ interface GpuHost {
+   DisableGpuCompositing();
+ 
+   // Tells the GPU host to store the blob on the given cache handle.
+-  StoreBlobToDisk(gpu.mojom.GpuDiskCacheHandle cache_handle,
+-                  mojo_base.mojom.ByteString key,
+-                  mojo_base.mojom.ByteString blob);
++  // (刀12: StoreBlobToDisk 已随 GpuDiskCache 出局。)
+ 
+   // Tells the GPU host to clear the shader disk cache.
+-  ClearGrShaderDiskCache();
++  // (刀12: ClearGrShaderDiskCache 已随 GpuDiskCache 出局。)
+ };
+diff --git a/services/viz/privileged/mojom/gl/gpu_service.mojom b/services/viz/privileged/mojom/gl/gpu_service.mojom
+index 14120b9d20..26a35df9b4 100644
+--- a/services/viz/privileged/mojom/gl/gpu_service.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_service.mojom
+@@ -14,12 +14,8 @@ import "gpu/ipc/common/memory_stats.mojom";
+ import "gpu/ipc/common/shared_image_capabilities.mojom";
+ import "gpu/ipc/common/surface_handle.mojom";
+ import "gpu/ipc/common/sync_token.mojom";
+-import "media/mojo/mojom/video_encode_accelerator.mojom";
+ import "mojo/public/mojom/base/byte_string.mojom";
+ import "mojo/public/mojom/base/process_id.mojom";
+-import "services/webnn/public/mojom/features.mojom";
+-import "services/webnn/public/mojom/webnn_context_provider.mojom";
+-import "services/webnn/public/mojom/webnn_service_introspection.mojom";
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+ import "ui/gfx/mojom/buffer_types.mojom";
+ import "ui/gl/mojom/gpu_preference.mojom";
+@@ -33,17 +29,11 @@ import "chromeos/ash/experiences/arc/mojom/video_decode_accelerator.mojom";
+ [EnableIf=is_chromeos]
+ import "chromeos/ash/experiences/arc/mojom/video_decoder.mojom";
+ 
+-[EnableIf=is_chromeos]
+-import "chromeos/ash/experiences/arc/mojom/video_encode_accelerator.mojom";
+ 
+ [EnableIf=is_chromeos]
+ import "chromeos/ash/experiences/arc/mojom/video_protected_buffer_allocator.mojom";
+ 
+-[EnableIf=is_chromeos]
+-import "components/chromeos_camera/common/jpeg_encode_accelerator.mojom";
+ 
+-[EnableIf=is_chromeos]
+-import "components/chromeos_camera/common/mjpeg_decode_accelerator.mojom";
+ 
+ [EnableIf=is_win]
+ import "mojo/public/mojom/base/unguessable_token.mojom";
+@@ -105,22 +95,14 @@ interface GpuService {
+   // If no channel can be identified, do nothing.
+   CloseChannel(int32 client_id);
+ 
+-  // Creates a new MjpegDecodeAccelerator and binds it to |jda|.
+-  [EnableIf=is_chromeos]
+-  CreateJpegDecodeAccelerator(
+-      pending_receiver<chromeos_camera.mojom.MjpegDecodeAccelerator> jda);
+-
+-  // Creates a new JpegEncodeAccelerator and binds it to |jea|.
+-  [EnableIf=is_chromeos]
+-  CreateJpegEncodeAccelerator(
+-      pending_receiver<chromeos_camera.mojom.JpegEncodeAccelerator> jea);
++  // (刀10.6: MjpegDecodeAccelerator / JpegEncodeAccelerator 两个 media 加速器
++  // 工厂方法已出局。)
+ 
+   // Registers a DCOMP surface handle and returns a token. The token will then
+   // be used by MediaFoundationRendererClient to call DCOMPTexture to set the
+   // surface in DCompSurfaceImageBacking. Null token will be returned upon
+   // failure.
+   // Also see media/mojo/mojom/dcomp_surface_registry.mojom.
+-  [EnableIf=is_win]
+   RegisterDCOMPSurfaceHandle(handle<platform> surface_handle)
+       => (mojo_base.mojom.UnguessableToken? token);
+ 
+@@ -128,7 +110,6 @@ interface GpuService {
+   // avoid handle leak in case the handle is not taken during a playback, e.g.
+   // user closes tab immediately after playback start. No-op if the handle has
+   // already been taken. Also see media/mojo/mojom/dcomp_surface_registry.mojom.
+-  [EnableIf=is_win]
+   UnregisterDCOMPSurfaceHandle(mojo_base.mojom.UnguessableToken token);
+ 
+   // Returns current video memory usage.
+@@ -148,7 +129,6 @@ interface GpuService {
+ 
+   // Requests that the GPU process query DXGI adapter and output information
+   // and return it.
+-  [EnableIf=is_win]
+   RequestDXGIInfo() => (gfx.mojom.DXGIInfo dxgi_info);
+ 
+   // Notify GPU that a cached blob was loaded from disk for the particular
+@@ -191,17 +171,14 @@ interface GpuService {
+   OnForegrounded();
+ 
+   // Begin a batch of layer tree changes.
+-  [EnableIf=is_apple]
+   BeginCATransaction();
+ 
+   // Commit a batch of layer tree changes atomically. Returns after the commit
+   // completes.
+-  [EnableIf=is_apple]
+   CommitCATransaction() => ();
+ 
+   // Write out the accumulated code profiling profile to the configured file.
+   // The callback is invoked once the profile has been flushed to disk.
+-  [EnableIf=use_clang_profiling_inside_sandbox]
+   WriteClangProfilingProfile() => ();
+ 
+   // Requests Dawn Info for about:gpu.
+@@ -220,7 +197,6 @@ interface GpuService {
+ 
+   // Returns a connection to the VrpFlags if the GPU process was
+   // launched with --vrp-flags, otherwise returns a null remote.
+-  [EnableIf=enable_vrp_flags]
+   GetVrpFlags()
+       => (pending_remote<vrp_flags.mojom.VrpFlags>? vrp_flags);
+ };
+diff --git a/services/viz/privileged/mojom/viz_main.mojom b/services/viz/privileged/mojom/viz_main.mojom
+index 77294af211..78a0cd4b83 100644
+--- a/services/viz/privileged/mojom/viz_main.mojom
++++ b/services/viz/privileged/mojom/viz_main.mojom
+@@ -5,7 +5,6 @@
+ module viz.mojom;
+ 
+ import "components/discardable_memory/public/mojom/discardable_shared_memory_manager.mojom";
+-import "components/viz/service/debugger/mojom/viz_debugger.mojom";
+ import "mojo/public/mojom/base/values.mojom";
+ import "mojo/public/mojom/base/shared_memory.mojom";
+ import "services/viz/public/mojom/compositing/compositing_mode_watcher.mojom";
+@@ -81,18 +80,9 @@ interface VizMain {
+   [EnableIf=is_android]
+   NotifyWorkloadIncrease();
+ 
+-  // Initiates the devtools enabled stream connection for the Viz Debugger.
+-  // This is only called if the flag --enable-viz-devtools is used.
+-  [EnableIf=use_viz_debugger]
+-  StartDebugStream(pending_remote<VizDebugOutput> viz_debug);
++  // (刀10.6: viz debugger 调试流方法已出局。)
+ 
+-  // Sends debug filtering information to the active Viz Debugger instance.
+-  // This is only called if the flag --enable-viz-devtools is used.
+-  [EnableIf=use_viz_debugger]
+-  FilterDebugStream(mojo_base.mojom.DictionaryValue filterData);
++  // (刀10.6: viz debugger 调试流方法已出局。)
+ 
+-  // Ends the Viz debugging session. This is only called if the flag
+-  // --enable-viz-devtools is used.
+-  [EnableIf=use_viz_debugger]
+-  StopDebugStream();
++  // (刀10.6: viz debugger 调试流方法已出局。)
+ };
+diff --git a/services/viz/public/mojom/gpu.mojom b/services/viz/public/mojom/gpu.mojom
+index 124af4d443..ad3f55103f 100644
+--- a/services/viz/public/mojom/gpu.mojom
++++ b/services/viz/public/mojom/gpu.mojom
+@@ -9,8 +9,6 @@ import "gpu/ipc/common/gpu_info.mojom";
+ import "gpu/ipc/common/shared_image_capabilities.mojom";
+ import "gpu/ipc/common/sync_token.mojom";
+ [EnableIf=is_chromeos]
+-import "components/chromeos_camera/common/mjpeg_decode_accelerator.mojom";
+-import "media/mojo/mojom/video_encode_accelerator.mojom";
+ import "mojo/public/mojom/base/shared_memory.mojom";
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+ import "ui/gfx/mojom/buffer_types.mojom";
+@@ -27,8 +25,5 @@ interface Gpu {
+          gpu.mojom.GpuFeatureInfo gpu_feature_info,
+          gpu.mojom.SharedImageCapabilities shared_image_capabilities);
+ 
+-  // Creates a new JpegDecodeAccelerator and binds it to |jda|.
+-  [EnableIf=is_chromeos]
+-  CreateJpegDecodeAccelerator(
+-      pending_receiver<chromeos_camera.mojom.MjpegDecodeAccelerator> jda);
++  // (刀10.6: CreateJpegDecodeAccelerator 已随 chromeos 摄像头/JDA 面出局。)
+ };
+diff --git a/ui/gfx/mojom/BUILD.gn b/ui/gfx/mojom/BUILD.gn
+index 61b50307f9..1375bac8f2 100644
+--- a/ui/gfx/mojom/BUILD.gn
++++ b/ui/gfx/mojom/BUILD.gn
+@@ -340,26 +340,21 @@ mojom("mojom") {
+     ]
+   }
+ 
+-  if (use_blink) {
+-    shared_cpp_typemaps += [
+-      {
+-        types = [
+-          {
+-            # TODO(crbug.com/40584691): Note that this is typemapped to the same
+-            # type as the gfx.mojom.GpuMemoryBufferPlatformHandle *union*. This
+-            # is intentional since the C++ GpuMemoryBufferHandle type is is a
+-            # hybrid union+struct today. This can be cleaned up once the
+-            # associated bug is fixed.
+-            mojom = "gfx.mojom.GpuMemoryBufferHandle"
+-            cpp = "::gfx::GpuMemoryBufferHandle"
+-            move_only = true
+-          },
+-        ]
+-        traits_headers = [ "buffer_types_mojom_traits.h" ]
+-        traits_public_deps = [ ":shared_mojom_traits" ]
+-      },
+-    ]
+-  }
++  # 刀10.6 (2026-09-15): GpuMemoryBufferHandle typemap 从 use_blink 门内
++  # 移出——exported_shared_image.mojom 无条件引用该类型, 本框架 use_blink=false。
++  shared_cpp_typemaps += [
++    {
++      types = [
++        {
++          mojom = "gfx.mojom.GpuMemoryBufferHandle"
++          cpp = "::gfx::GpuMemoryBufferHandle"
++          move_only = true
++        },
++      ]
++      traits_headers = [ "buffer_types_mojom_traits.h" ]
++      traits_public_deps = [ ":shared_mojom_traits" ]
++    },
++  ]
+ 
+   cpp_typemaps += shared_cpp_typemaps
+   blink_cpp_typemaps = shared_cpp_typemaps
+diff --git a/ui/gfx/mojom/buffer_types.mojom b/ui/gfx/mojom/buffer_types.mojom
+index 47824f3a28..b5b1b46923 100644
+--- a/ui/gfx/mojom/buffer_types.mojom
++++ b/ui/gfx/mojom/buffer_types.mojom
+@@ -28,7 +28,6 @@ struct GpuMemoryBufferId {
+ };
+ 
+ // gfx::GpuMemoryBufferHandle
+-[EnableIf=use_blink]
+ struct GpuMemoryBufferHandle {
+   uint32 offset;
+   uint32 stride;
+diff --git a/ui/gfx/mojom/buffer_types_mojom_traits.h b/ui/gfx/mojom/buffer_types_mojom_traits.h
+index e2bd6509ee..37bf91841a 100644
+--- a/ui/gfx/mojom/buffer_types_mojom_traits.h
++++ b/ui/gfx/mojom/buffer_types_mojom_traits.h
+@@ -82,7 +82,9 @@ struct COMPONENT_EXPORT(GFX_SHARED_MOJOM_TRAITS)
+   }
+ };
+ 
+-#if BUILDFLAG(USE_BLINK)
++// 刀10.6 (2026-09-15): GpuMemoryBufferHandle traits 门控摘除 (与 mojom
++// EnableIf/typemap 三件套同刀, use_blink=false 下为无条件类型)。
++#if true
+ template <>
+ struct COMPONENT_EXPORT(GFX_SHARED_MOJOM_TRAITS)
+     StructTraits<gfx::mojom::GpuMemoryBufferHandleDataView,

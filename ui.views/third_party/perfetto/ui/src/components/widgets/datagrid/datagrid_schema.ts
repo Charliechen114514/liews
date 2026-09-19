@@ -1,0 +1,295 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import m from 'mithril';
+import {maybeUndefined} from '../../../base/utils';
+import type {Row, SqlValue} from '../../../trace_processor/query_result';
+
+/**
+ * Rich return type for cell renderers that need to control alignment/styling.
+ * Renderers can return this instead of plain m.Children to override defaults.
+ */
+export interface CellRenderResult {
+  readonly content: m.Children;
+  readonly align?: 'left' | 'right' | 'center';
+  readonly nullish?: boolean;
+}
+
+/**
+ * Type guard to check if a cell renderer result is a CellRenderResult object.
+ */
+export function isCellRenderResult(
+  result: m.Children | CellRenderResult,
+): result is CellRenderResult {
+  return (
+    result !== null &&
+    typeof result === 'object' &&
+    !Array.isArray(result) &&
+    'content' in result
+  );
+}
+
+export type CellRenderer = (
+  value: SqlValue,
+  row: Row,
+) => m.Children | CellRenderResult;
+export type CellFormatter = (value: SqlValue, row: Row) => string;
+
+/**
+ * A schema defining the available columns in a data source.
+ * Each key is a column name, and the value describes how to render it
+ * or references another schema for nested data.
+ */
+export type ColumnSchema = {
+  [columnName: string]: ColumnDef | SchemaRef | ParameterizedColumnDef;
+};
+
+// Allowed data types for columns, used for filtering and rendering.
+// - 'text': string data (contains, glob) with distinct value picker
+// - 'quantitative': numeric comparisons (=, !=, <, <=, >, >=), no distinct values, no text filters
+// - 'identifier': numeric comparisons (=, !=, <, <=, >, >=) with distinct value picker, no text filters
+export type ColumnType = 'text' | 'quantitative' | 'identifier';
+
+// Cell alignment options. If not specified, alignment is inferred from the
+// cell value type (numbers right-aligned, text left-aligned).
+export type CellAlignment = 'left' | 'right' | 'center';
+
+/**
+ * A leaf column definition with rendering configuration.
+ * This replaces the old ColumnDefinition type.
+ */
+export interface ColumnDef {
+  // Human readable title to display instead of the column name.
+  readonly title?: m.Children;
+
+  // Plain string title for exports. Used when title is m.Children.
+  // Falls back to column path if not provided.
+  readonly titleString?: string;
+
+  // Control which types of filters are available for this column.
+  // - 'numeric': Shows comparison filters (=, !=, <, <=, >, >=) and null filters
+  // - 'string': Shows text filters (contains, glob) and equals/null filters
+  readonly columnType?: ColumnType;
+
+  // Custom renderer for this column's cells
+  readonly cellRenderer?: CellRenderer;
+
+  // Optional value formatter for this column, used when exporting data.
+  readonly cellFormatter?: CellFormatter;
+
+  // Additional actions displayed to the right of the cell dropdown menu.
+  readonly actions?: (value: SqlValue, row: Row) => m.Children;
+}
+
+/**
+ * A reference to another named schema in the registry.
+ * Used for nested relationships like parent -> slice or thread -> process.
+ */
+export interface SchemaRef {
+  // Name of the schema in the registry to reference
+  readonly schema: ColumnSchema;
+
+  // Override the title for this reference (e.g., "Parent Slice" instead of "Slice")
+  readonly title?: m.Children;
+
+  // Override filter type for all columns accessed through this reference
+  readonly filterType?: 'quantitative' | 'text';
+}
+
+/**
+ * A parameterized column where the key is determined at runtime.
+ * Used for things like args.foo, args.bar where keys are data-dependent.
+ */
+export interface ParameterizedColumnDef {
+  readonly parameterized: true;
+
+  // Title can be a static string or a function that takes the key
+  readonly title?: m.Children;
+
+  // Plain string title for exports. Falls back to column path if not provided.
+  readonly titleString?: string;
+
+  readonly filterType?: 'quantitative' | 'text';
+  readonly cellRenderer?: CellRenderer;
+  readonly cellFormatter?: CellFormatter;
+  readonly distinctValues?: boolean;
+}
+
+/**
+ * Gets the default visible columns for a schema.
+ * Returns all leaf columns (ColumnDef) at the root level.
+ * Does not include schema references or parameterized columns by default.
+ *
+ * @param schema The datagrid schema.
+ * @returns Array of column names that are leaf columns
+ */
+export function getDefaultVisibleColumns(schema: ColumnSchema): string[] {
+  const columns: string[] = [];
+  for (const [columnName, entry] of Object.entries(schema)) {
+    if ('schema' in entry || 'parameterized' in entry) {
+      // Skip schema references and parameterized columns
+      continue;
+    }
+    columns.push(columnName);
+  }
+  return columns;
+}
+
+/**
+ * Complete information about a resolved column, including all properties
+ * needed for rendering. This consolidates multiple schema lookups into one.
+ */
+export interface ColumnInfo {
+  // The resolved column definition
+  readonly def: ColumnDef | ParameterizedColumnDef;
+
+  // For parameterized columns, the key that was extracted from the path
+  readonly paramKey?: string;
+
+  // Title parts for building the column header (e.g., ["Parent", "Name"])
+  readonly titleParts: m.Children[];
+
+  // Convenience properties extracted from def:
+  readonly columnType?: ColumnType;
+  readonly cellRenderer?: CellRenderer;
+  readonly cellFormatter?: CellFormatter;
+
+  // Additional actions displayed to the right of the cell dropdown menu.
+  readonly actions?: (value: SqlValue, row: Row) => m.Children;
+}
+
+/**
+ * Escapes dots in a column name so it can be used as a datagrid field path.
+ * The schema resolver splits paths on single dots (via splitPath()), so a
+ * literal dot is represented by doubling it up.
+ *
+ * @param path The raw column name to escape
+ * @returns The escaped path suitable for use as a datagrid field
+ * @example
+ *   escapePath("foo.bar")  // "foo..bar"
+ *   escapePath("a.b.c")    // "a..b..c"
+ */
+export function escapePath(path: string): string {
+  return path.replace(/\./g, '..');
+}
+
+/**
+ * Resolves a column path and returns all information needed for rendering.
+ * This consolidates multiple schema lookups into a single traversal.
+ *
+ * @param schema The schema
+ * @param path The column path (e.g., "parent.parent.name")
+ * @returns Complete column info, or undefined if path is invalid
+ */
+/**
+ * Splits a dot-separated path into its parts. A double dot (`..`) is treated
+ * as an escaped literal dot rather than a separator; a single dot separates
+ * parts.
+ *
+ * @example
+ *   splitPath("parent.child")        → ["parent", "child"]
+ *   splitPath("parent.name..dots")   → ["parent", "name.dots"]
+ *   splitPath("foo..bar")            → ["foo.bar"]
+ *   splitPath("foo..bar.baz")        → ["foo.bar", "baz"]
+ */
+export function splitPath(path: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let i = 0;
+  while (i < path.length) {
+    if (path[i] === '.') {
+      if (path[i + 1] === '.') {
+        current += '.';
+        i += 2;
+      } else {
+        parts.push(current);
+        current = '';
+        i += 1;
+      }
+    } else {
+      current += path[i];
+      i += 1;
+    }
+  }
+  parts.push(current);
+  return parts;
+}
+
+export function getColumnInfo(
+  schema: ColumnSchema,
+  path: string,
+): ColumnInfo | undefined {
+  const parts = splitPath(path);
+
+  const titleParts: m.Children[] = [];
+  let currentSchema = schema;
+
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const entry = maybeUndefined(currentSchema[part]);
+
+    if (!entry) {
+      return undefined;
+    }
+
+    if ('schema' in entry) {
+      // Add title for this ref
+      titleParts.push(entry.title ?? part);
+      // Follow the reference
+      currentSchema = entry.schema;
+    } else if ('parameterized' in entry) {
+      // For parameterized columns, remaining parts are the key
+      const remainingParts = parts.slice(i + 1);
+      const paramKey =
+        remainingParts.length > 0 ? remainingParts.join('.') : undefined;
+
+      const baseName = typeof entry.title === 'string' ? entry.title : part;
+      if (paramKey) {
+        // Format as "Name[key]" - single element with index-style notation
+        titleParts.push(
+          m('span', [baseName, m('span.pf-param-key', `[${paramKey}]`)]),
+        );
+      } else {
+        titleParts.push(baseName);
+      }
+
+      return {
+        def: entry,
+        paramKey,
+        titleParts,
+        columnType: entry.filterType,
+        cellRenderer: entry.cellRenderer,
+        cellFormatter: entry.cellFormatter,
+      };
+    } else {
+      // Leaf column - should be the last part of the path
+      if (i === parts.length - 1) {
+        titleParts.push(entry.title ?? part);
+        return {
+          def: entry,
+          titleParts,
+          columnType: entry.columnType,
+          cellRenderer: entry.cellRenderer,
+          cellFormatter: entry.cellFormatter,
+          actions: entry.actions,
+        };
+      }
+      // Trying to navigate deeper into a leaf column - invalid
+      return undefined;
+    }
+  }
+
+  // We ended on a schema ref without resolving to a leaf
+  return undefined;
+}

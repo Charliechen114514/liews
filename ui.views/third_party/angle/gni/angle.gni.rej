@@ -1,0 +1,32 @@
+diff a/third_party/angle/gni/angle.gni b/third_party/angle/gni/angle.gni	(rejected hunks)
+@@ -228,12 +228,13 @@ declare_args() {
+        ((angle_use_x11 && !is_chromeos) || angle_use_wayland || is_castos)) &&
+       !is_fuchsia && !angle_is_winuwp && !is_win_arm64 && !is_ios
+ 
+-  angle_enable_vulkan =
+-      angle_has_build &&
+-      ((is_win && !angle_is_winuwp) ||
+-       ((is_linux || is_chromeos) &&
+-        (angle_use_x11 || angle_use_wayland || angle_use_vulkan_display)) ||
+-       is_android || is_fuchsia || is_mac)
++  # 刀11 (2026-09-14): Vulkan 后端整体出局。Windows 默认后端为 D3D11,
++  # Display.cpp 的全部 vulkan 引用在 ANGLE_ENABLE_VULKAN 宏守卫内,
++  # D3D11 路径完整; viz/ui/gl 侧零 vulkan 依赖。连带出局:
++  # third_party/{vulkan-validation-layers,vulkan-loader,vulkan-tools,
++  # vulkan-utility-libraries,vulkan_memory_allocator,spirv-tools} 与
++  # angle 内部 renderer/vulkan、common/vulkan。
++  angle_enable_vulkan = false
+ 
+   # When set to true, ANGLE will not use VK_KHR_surface and VK_KHR_swapchain
+   # extensions. Content can be rendered only off-screen.
+@@ -392,7 +393,9 @@ declare_args() {
+   angle_lunarg_vulkantools_dir =
+       "$angle_root/third_party/lunarg-vulkantools/src"
+ 
+-  angle_build_vulkan_system_info = angle_has_build && !angle_is_winuwp
++  # 刀11 (2026-09-14): 随 angle_enable_vulkan 一并关闭 (该开关独立于
++  # angle_enable_vulkan, 否则 gpu_info_util 仍会拉 vulkan-headers/loader/icd)。
++  angle_build_vulkan_system_info = false
+ 
+   angle_build_mesa = false
+ 

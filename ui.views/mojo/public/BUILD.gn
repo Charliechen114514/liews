@@ -1,0 +1,17 @@
+# Copyright 2014 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+group("public") {
+  # 刀10.5: meta-target 收窄——tests/rust/java 面出局 (testonly 聚合组)。
+  deps = [ ":sdk" ]
+}
+
+group("sdk") {
+  deps = [
+    "c/system",
+    "cpp/bindings",
+  ]
+}
+
+# 刀10.5: fuzzers 聚合组出局。

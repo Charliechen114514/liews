@@ -1,0 +1,25 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": [
+    ".",
+    "../types/vite.d.ts"
+  ],
+  "exclude": [
+    "../gen/"
+  ],
+  "compilerOptions": {
+    "rootDir": "..",
+    "outDir": "../../out/tsc/open_perfetto_trace",
+    "types": ["*"],
+    "lib": [
+      "dom",
+      "es2024",
+      "dom.iterable",
+    ],
+    "paths": {
+      "*" : ["./*", "../../node_modules/@tsundoku/micromodal_types/*"]
+    },
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+  }
+}

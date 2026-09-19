@@ -1,0 +1,9 @@
+# Copyright 2016 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# 刀10 (2026-09-14): 原 test("services_unittests") 聚合目标连同其全部
+# 测试依赖一并出局。services/ 面仅存承重五件套:
+#   viz(mojom 面) / tracing(public/cpp) / metrics(public) /
+#   service_manager(public/cpp client 面) / webnn(public/mojom:features)
+# 本文件不再定义任何 target; GN 惰性加载下无引用即不解析。

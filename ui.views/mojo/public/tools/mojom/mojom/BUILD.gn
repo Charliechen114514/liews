@@ -1,0 +1,31 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+group("mojom") {
+  data = [
+    "__init__.py",
+    "error.py",
+    "fileutil.py",
+    "format/__init__.py",
+    "format/format.py",
+    "generate/__init__.py",
+    "generate/check.py",
+    "generate/compatibility_checker.py",
+    "generate/generator.py",
+    "generate/module.py",
+    "generate/pack.py",
+    "generate/template_expander.py",
+    "generate/translate.py",
+    "parse/__init__.py",
+    "parse/ast.py",
+    "parse/conditional_features.py",
+    "parse/lexer.py",
+    "parse/parser.py",
+
+    # Third-party module dependencies
+    "//third_party/jinja2/",
+    "//third_party/ply/",
+  ]
+}
+

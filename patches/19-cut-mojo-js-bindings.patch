@@ -1,0 +1,18 @@
+--- a/ui/resources/BUILD.gn
++++ b/ui/resources/BUILD.gn
+@@ -123,7 +123,6 @@
+   ]
+ 
+   sources = [
+-    "$root_gen_dir/mojo/public/js/mojo_bindings_resources.pak",
+     "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
+     "$root_gen_dir/ui/resources/ui_resources_100_percent.pak",
+     "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
+@@ -134,7 +133,6 @@
+   output = "$root_out_dir/ui_test.pak"
+ 
+   deps = [
+-    "//mojo/public/js:resources",
+     "//ui/resources",
+     "//ui/strings",
+   ]

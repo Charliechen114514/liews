@@ -1,0 +1,989 @@
+diff --git a/cc/trees/layer_tree_host_impl.cc b/cc/trees/layer_tree_host_impl.cc
+index 692b98211a..68efdd300f 100644
+--- a/cc/trees/layer_tree_host_impl.cc
++++ b/cc/trees/layer_tree_host_impl.cc
+@@ -66,7 +66,6 @@
+ #include "cc/layers/layer_impl.h"
+ #include "cc/layers/render_surface_impl.h"
+ #include "cc/layers/surface_layer_impl.h"
+-#include "cc/layers/video_layer_impl.h"
+ #include "cc/layers/viewport.h"
+ #include "cc/metrics/compositor_frame_reporting_controller.h"
+ #include "cc/metrics/custom_metrics_recorder.h"
+diff --git a/components/url_formatter/BUILD.gn b/components/url_formatter/BUILD.gn
+index aab3ad41cc..1ab103667d 100644
+--- a/components/url_formatter/BUILD.gn
++++ b/components/url_formatter/BUILD.gn
+@@ -8,23 +8,9 @@ if (is_android) {
+   import("//build/config/android/rules.gni")
+ }
+ 
+-static_library("skeleton_generator") {
+-  sources = [
+-    "spoof_checks/skeleton_generator.cc",
+-    "spoof_checks/skeleton_generator.h",
+-  ]
+-  deps = [
+-    "//base",
+-    "//base:i18n",
+-  ]
+-}
+ 
+ static_library("url_formatter") {
+   sources = [
+-    "elide_url.cc",
+-    "elide_url.h",
+-    "spoof_checks/idn_spoof_checker.cc",
+-    "spoof_checks/idn_spoof_checker.h",
+     "spoof_checks/idn_spoof_checker_types.h",
+     "url_fixer.cc",
+     "url_fixer.h",
+@@ -36,11 +22,6 @@ static_library("url_formatter") {
+     "//base",
+     "//base:i18n",
+     "//build:robolectric_buildflags",
+-    "//components/url_formatter:skeleton_generator",
+-    "//components/url_formatter/spoof_checks/common_words:common",
+-    "//components/url_formatter/spoof_checks/common_words:common_words_dafsa",
+-    "//components/url_formatter/spoof_checks/top_domains:common",
+-    "//components/url_formatter/spoof_checks/top_domains:generate_top_domains_trie",
+     "//url",
+   ]
+ 
+@@ -54,59 +35,13 @@ static_library("url_formatter") {
+     sources += [ "url_formatter_android.cc" ]
+     deps += [ "android:jni_headers" ]
+   } else {
+-    # Used in elide_url.cc
+     deps += [ "//ui/gfx" ]
+   }
+ }
+ 
+ if (is_android) {
+   java_cpp_enum("url_formatter_java_enums_srcjar") {
+-    sources = [ "elide_url.h" ]
+   }
+ }
+ 
+-source_set("unit_tests") {
+-  testonly = true
+-  sources = [
+-    "elide_url_unittest.cc",
+-    "spoof_checks/idn_spoof_checker_unittest.cc",
+-    "url_fixer_unittest.cc",
+-    "url_formatter_unittest.cc",
+-  ]
+ 
+-  deps = [
+-    ":skeleton_generator",
+-    ":url_formatter",
+-    "//base",
+-    "//base/test:test_support",
+-    "//components/url_formatter/spoof_checks/top_domains:generate_idn_top_domains_test_trie",
+-    "//components/url_formatter/spoof_checks/top_domains:generate_top_domains_test_trie",
+-    "//net",
+-    "//net:preload_decoder",
+-    "//testing/gtest",
+-    "//ui/gfx",
+-    "//url",
+-  ]
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-test("url_formatter_fixer_fuzzer") {
+-  sources = [ "url_fixer_fuzzer.cc" ]
+-  fuzztests = [
+-    "URLFixerFuzzer.FuzzSegmentURL",
+-    "URLFixerFuzzer.FuzzUTF16SegmentURL",
+-    "URLFixerFuzzer.FuzzFormatURL",
+-    "URLFixerFuzzer.FuzzFixupURL",
+-    "URLFixerFuzzer.FuzzFixupRelativeFile",
+-  ]
+-  deps = [
+-    ":url_formatter",
+-    "//base",
+-    "//base:i18n",
+-    "//third_party/fuzztest:fuzztest_gtest_main",
+-    "//url",
+-  ]
+-}
+diff --git a/components/url_formatter/url_fixer.cc b/components/url_formatter/url_fixer.cc
+index d5d9a14c8d..63f8d66bb7 100644
+--- a/components/url_formatter/url_fixer.cc
++++ b/components/url_formatter/url_fixer.cc
+@@ -20,8 +20,6 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
+ #include "components/url_formatter/url_formatter.h"
+-#include "net/base/filename_util.h"
+-#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "url/third_party/mozilla/url_parse.h"
+ #include "url/url_file.h"
+ #include "url/url_util.h"
+@@ -36,6 +34,28 @@ const char* home_directory_override = nullptr;
+ 
+ namespace {
+ 
++// 刀8 补刀: net::FilePathToFileURL / HostHasRegistryControlledDomain 本地等价。
++GURL FilePathToFileUrlLocal(const base::FilePath& path) {
++  std::wstring fwd;
++  for (wchar_t c : path.value()) {
++    fwd += (c == L'\\') ? L'/' : c;
++  }
++  while (!fwd.empty() && fwd.front() == L'/') {
++    fwd.erase(fwd.begin());
++  }
++  return GURL(std::string("file:///") + base::WideToUTF8(fwd));
++}
++
++bool LooksLikeRegDomain(std::string_view host) {
++  size_t dot = host.rfind('.');
++  if (dot == std::string_view::npos || dot == 0 || dot + 1 >= host.size()) {
++    return false;
++  }
++  std::string_view tld = host.substr(dot + 1);
++  return std::any_of(tld.begin(), tld.end(),
++                     [](char c) { return !base::IsAsciiDigit(c); });
++}
++
+ // Hardcode these constants to avoid dependences on //chrome and //content.
+ const char kChromeUIScheme[] = "chrome";
+ const char kDevToolsScheme[] = "devtools";
+@@ -201,7 +221,7 @@ std::string FixupPath(const std::string& text) {
+ 
+   // Here, we know the input looks like a file.
+   GURL file_url =
+-      net::FilePathToFileURL(base::FilePath::FromUTF8Unsafe(filename));
++      FilePathToFileUrlLocal(base::FilePath::FromUTF8Unsafe(filename));
+   if (file_url.is_valid()) {
+     return base::UTF16ToUTF8(url_formatter::FormatUrl(
+         file_url, url_formatter::kFormatUrlOmitUsernamePassword,
+@@ -225,9 +245,7 @@ void AddDesiredTLD(const std::string& desired_tld, std::string* domain) {
+   // detected as a broken IP address and marked invalid, but attaching ".com"
+   // makes it legal.  We disallow unknown registries here so users can input
+   // "mail.yahoo" and hit ctrl-enter to get "www.mail.yahoo.com".
+-  if (net::registry_controlled_domains::HostHasRegistryControlledDomain(
+-          *domain, net::registry_controlled_domains::EXCLUDE_UNKNOWN_REGISTRIES,
+-          net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES)) {
++  if (LooksLikeRegDomain(*domain)) {
+     return;
+   }
+ 
+@@ -705,7 +723,7 @@ GURL FixupRelativeFile(const base::FilePath& base_dir,
+   }
+ 
+   if (is_file) {
+-    GURL file_url = net::FilePathToFileURL(full_path);
++    GURL file_url = FilePathToFileUrlLocal(full_path);
+     if (file_url.is_valid()) {
+       return GURL(base::UTF16ToUTF8(url_formatter::FormatUrl(
+           file_url, url_formatter::kFormatUrlOmitUsernamePassword,
+diff --git a/components/url_formatter/url_formatter.cc b/components/url_formatter/url_formatter.cc
+index 2f6cb31790..fe6b135300 100644
+--- a/components/url_formatter/url_formatter.cc
++++ b/components/url_formatter/url_formatter.cc
+@@ -19,8 +19,6 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/threading/thread_local_storage.h"
+ #include "build/build_config.h"
+-#include "components/url_formatter/spoof_checks/idn_spoof_checker.h"
+-#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "third_party/icu/source/common/unicode/uidna.h"
+ #include "third_party/icu/source/common/unicode/utypes.h"
+ #include "url/gurl.h"
+@@ -277,11 +275,6 @@ std::u16string FormatViewSourceUrl(
+   return result;
+ }
+ 
+-IDNSpoofChecker& GetIDNSpoofChecker() {
+-  static base::NoDestructor<IDNSpoofChecker> idn_spoof_checker;
+-  return *idn_spoof_checker;
+-}
+-
+ // Computes the top level domain from |host|. top_level_domain_unicode will
+ // contain the unicode version of top_level_domain. top_level_domain_unicode can
+ // remain empty if the TLD is not well formed punycode.
+@@ -363,19 +356,8 @@ IDNConversionResult IDNToUnicodeWithAdjustmentsImpl(
+ 
+   result.result = out16;
+ 
+-  // Leave as punycode any inputs that spoof top domains.
+-  if (result.has_idn_component) {
+-    result.matching_top_domain =
+-        GetIDNSpoofChecker().GetSimilarTopDomain(out16);
+-    if (!ignore_spoof_check_results &&
+-        !result.matching_top_domain.domain.empty()) {
+-      if (adjustments) {
+-        adjustments->clear();
+-      }
+-      result.result = host16;
+-    }
+-  }
+-
++  // 刀08.5 (2026-09-14): IDN 顶层域防钓鱼查询 (top_domains DAFSA) 是地址栏
++  // 语义, 随 spoof_checks 面出局; IDN 转换结果不再做 top-domain 相似度拦截。
+   return result;
+ }
+ 
+@@ -403,8 +385,10 @@ IDNSpoofCheckerResult SpoofCheckIDNComponent(
+     std::u16string_view label,
+     std::string_view top_level_domain,
+     std::u16string_view top_level_domain_unicode) {
+-  return GetIDNSpoofChecker().SafeToDisplayAsUnicode(label, top_level_domain,
+-                                                     top_level_domain_unicode);
++  // 刀08.5 (2026-09-14): IDNSpoofChecker (ICU 混淆检测 + common_words DAFSA)
++  // 是浏览器地址栏语义, 已整面出局。本框架语境: 无钓鱼威胁面, 恒判 kSafe
++  // (即总是按 ICU 规则做 punycode->unicode 显示转换)。
++  return IDNSpoofCheckerResult::kSafe;
+ }
+ 
+ // A wrapper to use base::NoDestructor with ICU's UIDNA, a C pointer to
+@@ -815,19 +799,18 @@ std::u16string IDNToUnicode(std::string_view host) {
+ }
+ 
+ std::string StripWWW(const std::string& text) {
+-  // Exclude the registry and domain from trivial subdomain stripping.
+-  std::string domain_and_registry =
+-      net::registry_controlled_domains::GetDomainAndRegistry(
+-          text, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+-  // If there is no domain and registry, we may be looking at an intranet
+-  // or otherwise non-standard host. Leave those alone.
+-  if (domain_and_registry.empty()) {
++  // 刀08.5 (2026-09-14): net/base/registry_controlled_domains (公共后缀表,
++  // //net 时代依赖) 已出局。改为朴素规则: 仅当 host 以 "www." 起头且
++  // 其后仍含至少两段 (x.y) 时剥前缀——覆盖显示场景的绝大多数情况,
++  // 不再区分 intranet/私有后缀等浏览器语义。
++  if (!base::StartsWith(text, kWww, base::CompareCase::SENSITIVE)) {
+     return text;
+   }
+-  return text.size() - domain_and_registry.length() >= kWwwLength &&
+-                 base::StartsWith(text, kWww, base::CompareCase::SENSITIVE)
+-             ? text.substr(kWwwLength)
+-             : text;
++  std::string_view rest = std::string_view(text).substr(kWwwLength);
++  if (rest.find('.') == std::string_view::npos || rest.front() == '.') {
++    return text;
++  }
++  return std::string(rest);
+ }
+ 
+ void StripWWWFromHostComponent(const std::string& url, url::Component* host) {
+@@ -847,26 +830,4 @@ std::string StripMobilePrefix(const std::string& text) {
+              : text;
+ }
+ 
+-Skeletons GetSkeletons(const std::u16string& host) {
+-  return GetIDNSpoofChecker().GetSkeletons(host);
+-}
+-
+-bool IsTopDomain(const GURL& url) {
+-  return GetIDNSpoofChecker().IsTopDomain(url);
+-}
+-
+-bool IsDomainAndRegistryATopDomain(const std::string& domain_and_registry) {
+-  return GetIDNSpoofChecker().IsDomainAndRegistryATopDomain(
+-      domain_and_registry);
+-}
+-
+-TopDomainEntry LookupSkeletonInTopDomains(const std::string& skeleton,
+-                                          const SkeletonType type) {
+-  return GetIDNSpoofChecker().LookupSkeletonInTopDomains(skeleton, type);
+-}
+-
+-std::u16string MaybeRemoveDiacritics(const std::u16string& host) {
+-  return GetIDNSpoofChecker().MaybeRemoveDiacritics(host);
+-}
+-
+ }  // namespace url_formatter
+diff --git a/components/url_formatter/url_formatter.h b/components/url_formatter/url_formatter.h
+index 7787376c15..72a70cc766 100644
+--- a/components/url_formatter/url_formatter.h
++++ b/components/url_formatter/url_formatter.h
+@@ -204,33 +204,23 @@ std::string StripMobilePrefix(const std::string& text);
+ void StripWWWFromHostComponent(const std::string& url, url::Component* host);
+ 
+ // Returns skeleton strings computed from |host| for spoof checking.
+-Skeletons GetSkeletons(const std::u16string& host);
+-
+ // Returns true if the domain given by |url|is one of the top domains listed in
+ // the hardcoded top domains list or a subdomain.
+-bool IsTopDomain(const GURL& url);
+-
+ // Checks if the given |domain_and_registry| is one of the top domains listed
+ // in hardcoded top domains list or is a subdomain of one of the top domains.
+ // This functions calculates the skeleton of |domain_and_registry| and looks it
+ // up in the pre-calculated skeleton list of top domains.
+-bool IsDomainAndRegistryATopDomain(const std::string& domain_and_registry);
+-
+ // Returns a domain from the hardcoded top domains list matching the given
+ // skeleton. Used for spoof checking. Different types of skeletons are saved in
+ // the skeleton trie. Providing |type| makes sure the right type of skeletons
+ // are looked up. For example if |skeleton|="googlecorn", |type|="kFull", no
+ // match would be found even though the skeleton is saved in the trie, because
+ // the type of this skeleton in the trie is "kSeparatorsRemoved".
+-TopDomainEntry LookupSkeletonInTopDomains(
+-    const std::string& skeleton,
+-    const SkeletonType type = SkeletonType::kFull);
++// (刀08.5: 上述 spoof-check 公开 API 已随 spoof_checks 面出局, 注释留档。)
+ 
+ // Removes diacritics from `host` and returns the new string if the input
+ // only contains Latin-Greek-Cyrillic characters. Otherwise, returns the
+ // input string.
+-std::u16string MaybeRemoveDiacritics(const std::u16string& host);
+-
+ }  // namespace url_formatter
+ 
+ #endif  // COMPONENTS_URL_FORMATTER_URL_FORMATTER_H_
+diff --git a/services/metrics/public/cpp/ukm_recorder.cc b/services/metrics/public/cpp/ukm_recorder.cc
+index 895872b4bb..1abeea8155 100644
+--- a/services/metrics/public/cpp/ukm_recorder.cc
++++ b/services/metrics/public/cpp/ukm_recorder.cc
+@@ -7,7 +7,6 @@
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "build/build_config.h"
+-#include "net/base/url_util.h"
+ #include "services/metrics/public/cpp/delegating_ukm_recorder.h"
+ #include "services/metrics/public/cpp/ukm_entry_builder.h"
+ #include "services/metrics/public/cpp/ukm_source_id.h"
+@@ -91,7 +90,7 @@ ukm::SourceId UkmRecorder::GetSourceIdForDipsSite(
+   // user (see go/dips). This method is used for background reporting of such
+   // sites, so there's no RenderFrameHost to get a SourceId from, or even a full
+   // URL to report on -- only the eTLD+1 stored by the DIPS Service.
+-  DCHECK(net::IsCanonicalizedHostCompliant(site)) << "Invalid site: " << site;
++  // 刀8 补刀: net::IsCanonicalizedHostCompliant DCHECK 已随 //net 出局移除。
+   return UkmRecorder::GetSourceIdFromScopeImpl(GURL("http://" + site),
+                                                SourceIdType::REDIRECT_ID);
+ }
+diff --git a/ui/base/clipboard/BUILD.gn b/ui/base/clipboard/BUILD.gn
+index 0453aac1d1..51d7165829 100644
+--- a/ui/base/clipboard/BUILD.gn
++++ b/ui/base/clipboard/BUILD.gn
+@@ -221,127 +221,5 @@ component("clipboard") {
+   }
+ }
+ 
+-source_set("clipboard_test_support") {
+-  testonly = true
+ 
+-  if (use_blink) {
+-    sources = [
+-      "test/clipboard_test_util.cc",
+-      "test/clipboard_test_util.h",
+-      "test/test_clipboard.cc",
+-      "test/test_clipboard.h",
+-    ]
+-  }
+-
+-  if (is_android) {
+-    sources += [ "clipboard_android_test_support.cc" ]
+-  }
+-
+-  public_deps = [
+-    ":clipboard",
+-    "//base",
+-    "//skia",
+-  ]
+-
+-  deps = [
+-    "//base/test:test_support",
+-    "//build:chromecast_buildflags",
+-    "//ui/base:features",
+-    "//ui/gfx",
+-  ]
+-
+-  if (is_android) {
+-    deps += [ "//ui/android:ui_javatest_jni_headers" ]
+-  }
+-}
+-
+-source_set("clipboard_test") {
+-  testonly = true
+-
+-  sources = [ "clipboard_format_type_unittest.cc" ]
+-  output_name = "ui_base_clipboard_test"
+-
+-  if (is_ios) {
+-    if (use_blink) {
+-      # On other OSs, clipboard platform unit tests are run as part of
+-      # interactive_ui_tests. However, since interactive_ui_tests is not yet
+-      # ready for Blink iOS, we run them here for now.
+-      sources += [
+-        "clipboard_test_template.h",
+-        "clipboard_unittest.cc",
+-      ]
+-    }
+-  } else {
+-    sources += [
+-      "custom_data_helper_unittest.cc",
+-      "test/test_clipboard_unittest.cc",
+-    ]
+-  }
+ 
+-  if (is_linux) {
+-    sources += [ "clipboard_util_linux_unittest.cc" ]
+-  }
+-
+-  if (is_mac) {
+-    sources += [
+-      "clipboard_mac_unittest.mm",
+-      "clipboard_util_mac_unittest.mm",
+-      "url_file_parser_unittest.cc",
+-    ]
+-    frameworks = [ "PDFKit.framework" ]
+-  }
+-
+-  if (is_win) {
+-    sources += [ "clipboard_util_win_unittest.cc" ]
+-  }
+-
+-  if (is_android) {
+-    sources += [ "clipboard_android_unittest.cc" ]
+-  }
+-
+-  deps = [
+-    ":clipboard_test_support",
+-    "//base/test:test_support",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-    "//ui/base:features",
+-    "//ui/events/platform",
+-    "//ui/gfx:test_support",
+-    "//url",
+-  ]
+-
+-  if (is_linux && use_dbus) {
+-    deps += [ ":clipboard_util_linux" ]
+-  }
+-
+-  if (is_mac) {
+-    deps += [ ":url_file_parser" ]
+-  }
+-
+-  if (use_aura || is_mac) {
+-    sources += [
+-      "clipboard_data_unittest.cc",
+-      "clipboard_non_backed_unittest.cc",
+-    ]
+-
+-    if (use_ozone) {
+-      deps += [
+-        "//ui/ozone:ozone_switches",
+-        "//ui/ozone:platform",
+-      ]
+-    }
+-  }
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-fuzzer_test("url_file_parser_fuzzer") {
+-  sources = [ "url_file_parser_fuzzer.cc" ]
+-  deps = [
+-    ":url_file_parser",
+-    "//base",
+-  ]
+-  seed_corpus = "test/url_file_parser_fuzzer_testcases"
+-}
+diff --git a/ui/base/clipboard/clipboard.cc b/ui/base/clipboard/clipboard.cc
+index da1757e967..c00bbbcf27 100644
+--- a/ui/base/clipboard/clipboard.cc
++++ b/ui/base/clipboard/clipboard.cc
+@@ -20,7 +20,6 @@
+ #include "base/strings/utf_string_conversions.h"
+ #include "base/types/optional_util.h"
+ #include "build/build_config.h"
+-#include "net/base/mime_util.h"
+ #include "third_party/abseil-cpp/absl/functional/overload.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+ #include "ui/base/clipboard/clipboard_constants.h"
+@@ -54,13 +53,21 @@ void OnCustomFormatDataRead(
+         std::string web_top_level_mime_type;
+         std::string web_mime_sub_type;
+         std::string web_format = it.first;
+-        if (net::ParseMimeTypeWithoutParameter(
+-                web_format, &web_top_level_mime_type, &web_mime_sub_type)) {
+-          std::string web_custom_format_string =
+-              base::StrCat({kWebClipboardFormatPrefix, web_top_level_mime_type,
+-                            "/", web_mime_sub_type});
+-          custom_format_names.emplace(std::move(web_custom_format_string),
+-                                      *custom_format_name);
++        // 刀8 补刀: mime 解析内联——top/subtype 以 '/' 切分, 忽略 ';' 后参数
++        // (原 net::ParseMimeTypeWithoutParameter)。
++        {
++          std::string bare = web_format.substr(0, web_format.find(';'));
++          size_t slash = bare.find('/');
++          if (slash != std::string::npos && slash > 0 &&
++              slash + 1 < bare.length()) {
++            web_top_level_mime_type = bare.substr(0, slash);
++            web_mime_sub_type = bare.substr(slash + 1);
++            std::string web_custom_format_string = base::StrCat(
++                {kWebClipboardFormatPrefix, web_top_level_mime_type, "/",
++                 web_mime_sub_type});
++            custom_format_names.emplace(std::move(web_custom_format_string),
++                                        *custom_format_name);
++          }
+         }
+       }
+     }
+diff --git a/ui/base/clipboard/clipboard_util_win.cc b/ui/base/clipboard/clipboard_util_win.cc
+index f5ccef4edb..a04dfe73e7 100644
+--- a/ui/base/clipboard/clipboard_util_win.cc
++++ b/ui/base/clipboard/clipboard_util_win.cc
+@@ -32,7 +32,6 @@
+ #include "base/threading/scoped_blocking_call.h"
+ #include "base/win/scoped_hglobal.h"
+ #include "base/win/shlwapi.h"
+-#include "net/base/filename_util.h"
+ #include "ui/base/clipboard/clipboard_format_type.h"
+ #include "ui/base/clipboard/custom_data_helper.h"
+ #include "ui/base/ui_base_features.h"
+@@ -231,9 +230,15 @@ base::FilePath GetUniqueVirtualFilename(
+   unique_name = unique_name.AddExtension(extension);
+ 
+   // Replace any file name illegal characters.
+-  unique_name = net::GenerateFileName(GURL(), std::string(), std::string(),
+-                                      base::WideToUTF8(unique_name.value()),
+-                                      std::string(), std::string());
++  // 刀8 补刀: net::GenerateFileName(空 URL 场景)等价于清洗非法字符。
++  {
++    std::wstring sanitized;
++    const std::wstring kIllegal = L"\\/:*?\"<>|";
++    for (wchar_t c : unique_name.value()) {
++      sanitized += kIllegal.find(c) == std::wstring::npos ? c : L'_';
++    }
++    unique_name = base::FilePath(sanitized);
++  }
+ 
+   // Make the file name unique. This is more involved than just marching through
+   // |existing_filenames|, finding the first match, uniquifying, then breaking
+@@ -781,7 +786,16 @@ bool GetUrlInfos(IDataObject* data_object,
+     if (!GetFilenames(data_object, &filenames))
+       return false;
+     DCHECK_GT(filenames.size(), 0U);
+-    GURL file_url = net::FilePathToFileURL(base::FilePath(filenames[0]));
++    // 刀8 补刀: 文件路径转 file:// URL (net::FilePathToFileURL 内联)。
++    std::wstring host_escaped;
++    for (wchar_t c : filenames[0]) {
++      host_escaped += (c == L'\\') ? L'/' : c;
++    }
++    while (!host_escaped.empty() && host_escaped.front() == L'/') {
++      host_escaped.erase(host_escaped.begin());
++    }
++    GURL file_url(std::string("file:///") +
++                  base::WideToUTF8(host_escaped));
+     if (file_url.is_valid()) {
+       url_infos.emplace_back(file_url, u"");
+     }
+diff --git a/ui/base/clipboard/clipboard_win.cc b/ui/base/clipboard/clipboard_win.cc
+index 1f48648bd2..d32526931e 100644
+--- a/ui/base/clipboard/clipboard_win.cc
++++ b/ui/base/clipboard/clipboard_win.cc
+@@ -45,7 +45,6 @@
+ #include "base/win/scoped_hdc.h"
+ #include "base/win/scoped_hglobal.h"
+ #include "clipboard_util.h"
+-#include "net/base/filename_util.h"
+ #include "skia/ext/skia_utils_base.h"
+ #include "skia/ext/skia_utils_win.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+diff --git a/ui/base/dragdrop/os_exchange_data_provider_win.cc b/ui/base/dragdrop/os_exchange_data_provider_win.cc
+index 64fd5620d4..ceb71918e6 100644
+--- a/ui/base/dragdrop/os_exchange_data_provider_win.cc
++++ b/ui/base/dragdrop/os_exchange_data_provider_win.cc
+@@ -45,7 +45,6 @@
+ #include "base/win/scoped_hdc.h"
+ #include "base/win/scoped_hglobal.h"
+ #include "base/win/shlwapi.h"
+-#include "net/base/filename_util.h"
+ #include "skia/ext/skia_utils_win.h"
+ #include "third_party/skia/include/core/SkBitmap.h"
+ #include "ui/base/clipboard/clipboard_format_type.h"
+@@ -63,6 +62,34 @@
+ #include "url/gurl.h"
+ #include "url/origin.h"
+ 
++namespace {
++// 刀8 补刀: 原生拖放 URL 建议文件名 (net::GetSuggestedFilename 空参照场景:
++// 取 URL path 末段并替换非法字符)。
++std::u16string SuggestedFilenameFromUrl(const GURL& url) {
++  std::string path(url.path());
++  size_t last_slash = path.find_last_of('/');
++  std::string name = (last_slash == std::string::npos) ? path
++                                                       : path.substr(last_slash + 1);
++  if (name.empty()) {
++    name = "download";
++  }
++  static const char kIllegal[] = {'\\', '/', ':', '*', '?', '"', '<', '>', '|'};
++  std::string safe;
++  for (char c : name) {
++    bool bad = false;
++    for (char i : kIllegal) {
++      if (c == i) {
++        bad = true;
++        break;
++      }
++    }
++    safe += bad ? '_' : c;
++  }
++  return base::UTF8ToUTF16(safe);
++}
++
++}  // namespace
++
+ namespace ui {
+ 
+ namespace {
+@@ -794,7 +821,7 @@ std::vector<ClipboardUrlInfo> OSExchangeDataProviderWin::GetURLs(
+     DCHECK(plaintext_url->is_valid());
+     GURL url = std::move(plaintext_url).value();
+     std::u16string title =
+-        net::GetSuggestedFilename(url, "", "", "", "", std::string());
++        SuggestedFilenameFromUrl(url);
+     url_infos.emplace_back(std::move(url), std::move(title));
+   }
+ 
+@@ -1553,7 +1580,7 @@ std::wstring CreateValidFileNameFromTitle(const GURL& url,
+   if (title.empty()) {
+     if (url.is_valid()) {
+       validated = base::AsWString(
+-          net::GetSuggestedFilename(url, "", "", "", "", std::string()));
++          SuggestedFilenameFromUrl(url));
+     } else {
+       // Nothing else can be done, just use a default.
+       validated = l10n_util::GetWideString(IDS_APP_UNTITLED_SHORTCUT_FILE_NAME);
+diff --git a/ui/base/pointer/touch_ui_controller.cc b/ui/base/pointer/touch_ui_controller.cc
+index 47e890c5eb..44433a0cbd 100644
+--- a/ui/base/pointer/touch_ui_controller.cc
++++ b/ui/base/pointer/touch_ui_controller.cc
+@@ -100,7 +100,7 @@ void RecordPostureModeOnSwitch(bool tablet_mode) {
+ bool IsWndProcMessageObserved(UINT message) {
+ #if BUILDFLAG(USE_BLINK)
+   return message == WM_SETTINGCHANGE || message == WM_POINTERDEVICECHANGE;
+-#elif   // BUILDFLAG(USE_BLINK)
++#else  // BUILDFLAG(USE_BLINK)  // 刀10.6: 上游潜伏笔误(#elif 缺表达式), use_blink=false 时曝光
+   return message == WM_SETTINGCHANGE;
+ #endif  // BUILDFLAG(USE_BLINK)
+ }
+diff --git a/ui/base/resource/data_pack.cc b/ui/base/resource/data_pack.cc
+index fecd9eca2f..bf8280dd1c 100644
+--- a/ui/base/resource/data_pack.cc
++++ b/ui/base/resource/data_pack.cc
+@@ -28,7 +28,6 @@
+ #include "base/threading/platform_thread.h"
+ #include "base/types/expected_macros.h"
+ #include "build/build_config.h"
+-#include "net/filter/gzip_header.h"
+ #include "third_party/zlib/google/compression_utils.h"
+ #include "ui/base/resource/resource_scale_factor.h"
+ #include "ui/base/resource/scoped_file_writer.h"
+@@ -255,7 +254,12 @@ DataPack::LoadFromPathInternal(const base::FilePath& path) {
+     DPLOG(ERROR) << "Failed to mmap datapack";
+     return base::unexpected(ErrorState{FailureReason::kMapFile, error});
+   }
+-  if (net::GZipHeader::HasGZipHeader(mmap->bytes())) {
++  // 刀8 补刀 (2026-09-15): 原 net::GZipHeader::HasGZipHeader 仅检测 gzip
++  // magic (RFC 1952: 0x1f 0x8b)，内联之，拔掉 //net 的最后一条 ui/base 边。
++  bool has_gzip_magic =
++      mmap->bytes().size() >= 2 && mmap->bytes()[0] == 0x1f &&
++      mmap->bytes()[1] == 0x8b;
++  if (has_gzip_magic) {
+     std::string_view compressed = base::as_string_view(mmap->bytes());
+     std::string data;
+     if (!compression::GzipUncompress(compressed, &data)) {
+diff --git a/ui/base/resource/resource_bundle.cc b/ui/base/resource/resource_bundle.cc
+index fbdb93989f..d8dae5b3db 100644
+--- a/ui/base/resource/resource_bundle.cc
++++ b/ui/base/resource/resource_bundle.cc
+@@ -37,7 +37,6 @@
+ #include "base/synchronization/lock.h"
+ #include "base/trace_event/typed_macros.h"
+ #include "build/build_config.h"
+-#include "net/filter/gzip_header.h"
+ #include "skia/ext/image_operations.h"
+ #include "third_party/brotli/include/brotli/decode.h"
+ #include "third_party/skia/include/codec/SkPngRustDecoder.h"
+@@ -80,6 +79,14 @@
+ #undef LoadBitmap
+ #endif
+ 
++namespace {
++// 刀8 补刀: gzip magic 检测内联 (原 net::GZipHeader::HasGZipHeader)。
++bool HasGzipMagic(base::span<const uint8_t> bytes) {
++  return bytes.size() >= 2 && bytes[0] == 0x1f && bytes[1] == 0x8b;
++}
++
++}  // namespace
++
+ namespace ui {
+ 
+ namespace {
+@@ -176,7 +183,7 @@ bool BrotliDecompress(std::string_view input, OutputBufferType output) {
+ // Helper function for decompressing resource.
+ void DecompressIfNeeded(std::string_view data, OutputBufferType output) {
+   if (!data.empty() &&
+-      net::GZipHeader::HasGZipHeader(base::as_byte_span(data))) {
++      HasGzipMagic(base::as_byte_span(data))) {
+     TRACE_EVENT0("ui", "DecompressIfNeeded::GzipUncompress");
+     const uint32_t uncompressed_size = compression::GetUncompressedSize(data);
+     bool success = compression::GzipUncompress(
+@@ -766,7 +773,7 @@ base::RefCountedMemory* ResourceBundle::LoadDataResourceBytesForScale(
+   if (data.empty())
+     return nullptr;
+ 
+-  if (net::GZipHeader::HasGZipHeader(base::as_byte_span(data)) ||
++  if (HasGzipMagic(base::as_byte_span(data)) ||
+       HasBrotliHeader(data)) {
+     base::RefCountedString* bytes_string = new base::RefCountedString();
+     DecompressIfNeeded(data, &bytes_string->as_string());
+@@ -874,7 +881,7 @@ bool ResourceBundle::IsGzipped(int resource_id) const {
+   if (!raw_data.data())
+     return false;
+ 
+-  return net::GZipHeader::HasGZipHeader(base::as_byte_span(raw_data));
++  return HasGzipMagic(base::as_byte_span(raw_data));
+ }
+ 
+ bool ResourceBundle::IsBrotli(int resource_id) const {
+diff --git a/url/BUILD.gn b/url/BUILD.gn
+index f39d8aaa3d..7f3f95f6a9 100644
+--- a/url/BUILD.gn
++++ b/url/BUILD.gn
+@@ -8,7 +8,6 @@ import("//testing/test.gni")
+ import("features.gni")
+ 
+ import("//build/config/cronet/config.gni")
+-import("//third_party/jni_zero/jni_zero.gni")
+ 
+ if (is_android) {
+   import("//build/config/android/rules.gni")
+@@ -70,7 +69,6 @@ component("url") {
+   public_deps = [
+     "//base",
+     "//build:robolectric_buildflags",
+-    "//net:cronet_buildflags",
+   ]
+ 
+   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+@@ -170,132 +168,10 @@ if (is_android && current_toolchain == default_toolchain) {
+   }
+ }
+ 
+-source_set("url_test_support") {
+-  testonly = true
+ 
+-  sources = [
+-    "gurl_abstract_tests.h",
+-    "origin_abstract_tests.cc",
+-    "origin_abstract_tests.h",
+-    "url_canon_icu_test_helpers.h",
+-  ]
+-
+-  public_deps = [
+-    ":url",
+-    "//base",
+-    "//base/test:test_support",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-  ]
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-test("url_unittests") {
+-  sources = [
+-    "gurl_unittest.cc",
+-    "origin_unittest.cc",
+-    "run_all_unittests.cc",
+-    "scheme_host_port_unittest.cc",
+-    "url_canon_icu_unittest.cc",
+-    "url_canon_unittest.cc",
+-    "url_parse_unittest.cc",
+-    "url_test_utils.h",
+-    "url_util_unittest.cc",
+-  ]
+-
+-  deps = [
+-    ":url",
+-    ":url_test_support",
+-    "//base",
+-    "//base/test:test_support",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-  ]
+ 
+-  if (use_platform_icu_alternatives) {
+-    # Unit tests that are not supported by the current ICU alternatives on
+-    # Android.
+-    # TODO(https://crbug.com/513446116): revisit this - in Android >=24 we now
+-    # use android.icu.text.IDNA which implements IDNA2008 and should therefore
+-    # be consistent with ICU.
+-    if (is_android) {
+-      sources -= [
+-        "url_canon_icu_unittest.cc",
+-        "url_canon_unittest.cc",
+-      ]
+-      deps += [ ":url_java" ]
+-    }
+ 
+-    # Unit tests that are not supported by the current ICU alternatives on iOS.
+-    if (is_ios) {
+-      sources -= [
+-        "origin_unittest.cc",
+-        "scheme_host_port_unittest.cc",
+-        "url_canon_icu_unittest.cc",
+-        "url_canon_unittest.cc",
+-      ]
+-    }
+-  } else {  # !use_platform_icu_alternatives
+-    deps += [ "//third_party/icu:icuuc" ]
+-  }
+ 
+-  if (!is_ios && !is_cronet_build) {
+-    sources += [
+-      "mojom/scheme_host_port_mojom_traits_unittest.cc",
+-      "mojom/url_gurl_mojom_traits_unittest.cc",
+-    ]
+-    deps += [
+-      "//mojo/core/embedder",
+-      "//mojo/public/cpp/test_support:test_utils",
+-      "//url/ipc:url_ipc_unittests",
+-      "//url/mojom:mojom_traits",
+-      "//url/mojom:test_url_mojom_gurl",
+-    ]
+-  }
+-
+-  # TODO(crbug.com/40031409): Fix code that adds exit-time destructors and
+-  # enable the diagnostic by removing this line.
+-  configs += [ "//build/config/compiler:no_exit_time_destructors" ]
+-}
+-
+-test("url_perftests") {
+-  sources = [
+-    "scheme_host_port_perftest.cc",
+-    "url_parse_perftest.cc",
+-  ]
+-
+-  deps = [
+-    ":url",
+-    "//base",
+-    "//base/test:test_support",
+-    "//base/test:test_support_perf",
+-    "//testing/gtest",
+-    "//third_party/google_benchmark",
+-  ]
+-}
+-
+-fuzzer_test("gurl_fuzzer") {
+-  sources = [ "gurl_fuzzer.cc" ]
+-  deps = [
+-    ":url",
+-    "//base",
+-    "//base:i18n",
+-    "//testing/libfuzzer:libfuzzer_base_wrappers",
+-  ]
+-  dict = "gurl_fuzzer.dict"
+-}
+-
+-fuzzer_test("url_canon_icu_fuzzer") {
+-  sources = [ "url_canon_icu_fuzzer.cc" ]
+-  deps = [
+-    ":url",
+-    ":url_test_support",
+-    "//third_party/icu:icuuc",
+-  ]
+-}
+ 
+ if (is_android && !is_cronet_build) {
+   source_set("android_test_helper") {
+@@ -329,36 +205,7 @@ if (is_android && !is_cronet_build) {
+ 
+     # Targets depending on gurl_junit_test_support do not need to bypass
+     # platform checks.
+-    android_library("gurl_junit_test_support") {
+-      testonly = true
+-      sources = [ "android/test/java/src/org/chromium/url/JUnitTestGURLs.java" ]
+-      deps = [ ":url_java" ]
+-    }
+ 
+-    android_library("url_java_unit_tests") {
+-      testonly = true
+-      sources = [
+-        "android/javatests/src/org/chromium/url/GURLJavaTest.java",
+-        "android/javatests/src/org/chromium/url/OriginJavaTest.java",
+-      ]
+-      deps = [
+-        ":android_test_helper_java",
+-        ":gurl_junit_test_support",
+-        ":url_java",
+-        "//base:base_java",
+-        "//base:base_java_test_support",
+-        "//build/android:build_java",
+-        "//content/public/test/android:content_java_test_support",
+-        "//mojo/public/mojom/base:base_java",
+-        "//third_party/androidx:androidx_core_core_java",
+-        "//third_party/androidx:androidx_test_runner_java",
+-        "//third_party/jni_zero:jni_zero_java",
+-        "//third_party/junit",
+-        "//third_party/mockito:mockito_java",
+-        "//url/mojom:url_mojom_gurl_java",
+-        "//url/mojom:url_mojom_origin_java",
+-      ]
+-    }
+ 
+     # See https://bugs.chromium.org/p/chromium/issues/detail?id=908819 for why we
+     # can't put 'java' in the name here.
+diff --git a/url/origin.h b/url/origin.h
+index 97fa03d5f3..04af96de6b 100644
+--- a/url/origin.h
++++ b/url/origin.h
+@@ -22,11 +22,9 @@
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
+ #include "build/robolectric_buildflags.h"
+-#include "net/base/cronet_buildflags.h"
+ #include "url/scheme_host_port.h"
+ 
+-#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)) && \
+-    !BUILDFLAG(CRONET_BUILD)
++#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)
+ #include "base/android/jni_android.h"
+ #include "url/url_jni_headers/Origin_shared_jni.h"
+ #endif
+@@ -334,8 +332,7 @@ class COMPONENT_EXPORT(URL) Origin {
+   // and precursor information.
+   std::string GetDebugString(bool include_nonce = true) const;
+ 
+-#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)) && \
+-    !BUILDFLAG(CRONET_BUILD)
++#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)
+   jni_zero::ScopedJavaLocalRef<JOrigin> ToJavaObject(JNIEnv* env) const;
+   static Origin FromJavaObject(JNIEnv* env,
+                                const jni_zero::JavaRef<jobject>& java_origin);
+@@ -355,8 +352,7 @@ class COMPONENT_EXPORT(URL) Origin {
+   size_t EstimateMemoryUsage() const;
+ 
+  private:
+-#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)) && \
+-    !BUILDFLAG(CRONET_BUILD)
++#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)
+   friend Origin CreateOpaqueOriginForAndroid(
+       const std::string& scheme,
+       const std::string& host,
+@@ -512,8 +508,7 @@ COMPONENT_EXPORT(URL) bool IsSameOriginWith(const GURL& a, const GURL& b);
+ 
+ }  // namespace url
+ 
+-#if (BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)) && \
+-    !BUILDFLAG(CRONET_BUILD)
++#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_ROBOLECTRIC)
+ namespace jni_zero {
+ 
+ // @JniType conversion function.

@@ -1,0 +1,237 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// LINT: LEGACY_NAMES
+syntax = "proto3";
+
+package fcp.confidentialcompute;
+
+// A customer-facing interface for configuring private inference queries in a
+// TEE-hosted federated analytics workload.
+message InferenceConfiguration {
+  // A set of private inference tasks to execute inside the TEE-hosted
+  // container using client data.
+  repeated InferenceTask inference_task = 1;
+  // Configuration of different models to be used for inference.
+  oneof model_config {
+    GemmaConfiguration gemma_config = 2;
+    PaicConfiguration paic_config = 5;
+  }
+  // Additional customer-facing arguments affecting inference at runtime.
+  RuntimeConfig runtime_config = 3;
+
+  // Configuration for the host proxy (see the comment on `ProxyConfig` for
+  // the explanation of the role of this proxy).
+  ProxyConfig proxy_config = 4;
+}
+
+// A message containing different optional arguments for inference runtime. For
+// all arguments, if no parameter is set, the default values as specified in the
+// TEE-hosted model engine will be used.
+message RuntimeConfig {
+  // The maximum number of characters in the prompt to be sent to the model.
+  int32 max_prompt_size = 1;
+  // The length of the sequence to be processed. Overrides the default value of
+  // the chosen model engine if desired to process longer prompts at expense of
+  // higher RAM consumption and longer pipeline runs.
+  int32 seq_len = 2;
+  // Number of tokens to generate for each inference run. Limiting the output
+  // can significantly improve performance.
+  int32 max_generated_tokens = 3;
+  // The difference to apply to the default model temperature of 1.0. A negative
+  // value will cool the model, while a positive value will heat the model.
+  double temperature_diff = 4;
+  // The maximum number of inference calls to be batched together for parallel
+  // processing. If not set, the default value of 1 will be used (no batching).
+  int32 max_batch_size = 5;
+
+  // Determines how model instances are managed within the container.
+  enum ModelMode {
+    MODEL_MODE_UNSPECIFIED = 0;
+    // Uses a single model instance safely shared across all sessions within the
+    // container.
+    MODEL_MODE_SHARED_MODEL = 1;
+    // Instantiates a separate model instance per session.
+    MODEL_MODE_MODEL_PER_SESSION = 2;
+  }
+  ModelMode model_mode = 6;
+}
+
+// Configuration for the proxy on the (Oak) host on which the Oak TEE is
+// running. The host starts a gRPC proxy, relays its configuration to
+// the container in the Oak TEE, and enables the container in the TEE to
+// connect to this proxy to initiate the Oak Session protocol with a remote
+// inference backend. The host proxy facilitates the TEE-to-TEE communication
+// with the remote inference backend by carrying encrypted messages back
+// and forth. Containers in Oak TEEs do not have direct network access, and
+// have to use a proxy on the host, to reach inference backends (e.g., such
+// as GPU-equipped backends hosted on GCP). Currently, only a port number is
+// specified. The host proxy is guaranteed to implement the Oak Session
+// protocol via gRPC.
+message ProxyConfig {
+  // The port number on which the host proxy is listening on. Whereas normally,
+  // Oak TEEs cannot reach the internet, this port is specifically provisioned
+  // to be accessible to the container for the purpose of communication with
+  // the proxy.
+  int32 host_proxy_port = 1;
+}
+
+// A single private inference task to execute inside the TEE-hosted
+// container. For Gemma, each task involves prompting the Gemma model once using
+// input from one column and outputting the responses into another column.
+message InferenceTask {
+  // Data columns used for inference and for storing inference results.
+  ColumnConfiguration column_config = 1;
+  // The logic used by a model to perform inference.
+  oneof inference_logic {
+    Prompt prompt = 2;
+  }
+}
+
+// Configuration for columns used for inference. Multiple input columns can be
+// used as input, and the inference result will be saved in one output column.
+message ColumnConfiguration {
+  string output_column_name = 2;
+  repeated string input_column_names = 3;
+
+  reserved 1;
+}
+
+// A message for storing logics required for prompting a model.
+message Prompt {
+  string prompt_template = 1;
+  // A regex to match against the model response, if provided. Only the first
+  // match will be used.
+  string regex = 2;
+  // A parser used to split output into multiple rows and/or columns. If
+  // PARSER_AUTO is selected, the prompt will be automatically modified so that
+  // Gemma outputs JSON format for automatic parsing. Otherwise, the prompt will
+  // be unchanged. If there is only one output value, select PARSER_NONE.
+  enum Parser {
+    PARSER_NONE = 0;  // No parsing needed for single output.
+    PARSER_AUTO = 1;  // Prompt will be automatically modified to support JSON.
+    PARSER_DELIMITER = 2;  // No prompt modifying, expecting delimited outputs.
+  }
+  Parser parser = 3;
+  // If PARSER_DELIMITER specified, we defer to this string as a provided
+  // delimeter. Default delimiter if left empty is a comma.
+  message DelimiterParser {
+    string delimiter = 1;
+  }
+  DelimiterParser delimiter_parser = 4;
+}
+
+// Configuration for running inference using Gemma models.
+message GemmaConfiguration {
+  // The path to the model tokenizer file. Tokenizer file does not require
+  // chunking because it is less than 2GB in size.
+  string tokenizer_file = 1;
+  // The path to the model weights file, possibly over 2GB size. This file will
+  // be chunked into multiple gRPC requests under 2GB in the pipeline.
+  string model_weight_file = 2;
+  // The Gemma model variant to be used for inference.
+  GemmaModel model = 3;
+  // Deprecated: determined based on the model itself.
+  GemmaModelTraining model_training = 4 [deprecated = true];
+  // Deprecated: determined based on the model itself.
+  GemmaTensorType tensor_type = 5 [deprecated = true];
+
+  // An enum of Gemma model weight file type supported for inference in TEE.
+  enum WeightType {
+    WEIGHT_TYPE_UNSPECIFIED = 0;
+    // If SBS is used, inference will be performed using gemma.cpp engine.
+    // gemma.cpp only supports CPU inference.
+    WEIGHT_TYPE_SBS = 1;
+    // If GGUF is used, inference will be performed using llama.cpp engine.
+    // llama.cpp supports GPU inference.
+    WEIGHT_TYPE_GGUF = 2;
+  }
+
+  // The file type of the Gemma model weight file.
+  WeightType weight_type = 6;
+}
+
+// An enum of Gemma models supported for inference in TEE. Details about Gemma
+// model variants can be found at gcpp::Model in the gemma.cpp repo
+// (https://github.com/google/gemma.cpp).
+enum GemmaModel {
+  GEMMA_MODEL_UNSPECIFIED = 0;
+  // Tiny model is only for testing.
+  GEMMA_TINY = 1;
+  GEMMA_2B = 2;
+  GEMMA2_2B = 3;
+  GEMMA_7B = 4;
+  GEMMA2_9B = 5;
+  GEMMA3_1B = 6;
+  GEMMA3_4B = 7;
+  GEMMA3_12B = 8;
+}
+
+// An enum of Gemma model training types supported for inference in TEE. Details
+// about Gemma model training can be found at gcpp::ModelTraining in the
+// gemma.cpp repo (https://github.com/google/gemma.cpp).
+enum GemmaModelTraining {
+  GEMMA_MODEL_TRAINING_UNSPECIFIED = 0;
+  GEMMA_IT = 1;
+  GEMMA_PT = 2;
+}
+
+// An enum of Gemma tensor types supported for inference in TEE. Details about
+// the Gemma model tensor types can be found at gcpp::Type in the gemma.cpp repo
+// (https://github.com/google/gemma.cpp).
+enum GemmaTensorType {
+  GEMMA_TENSOR_TYPE_UNSPECIFIED = 0;
+  GEMMA_F32 = 1;
+  GEMMA_SFP = 2;
+}
+
+// Message to be passed in as part of FedSqlContainerInitializeConfiguration as
+// StreamInitializeRequest.configure.configuration for private inference in the
+// ConfidentialTransform API.
+message InferenceInitializeConfiguration {
+  InferenceConfiguration inference_config = 1;
+  // Additional model-specific initialization configuration.
+  oneof model_init_config {
+    GemmaInitializeConfiguration gemma_init_config = 2;
+    LlamaCppInitializeConfiguration llama_cpp_init_config = 3;
+  }
+}
+
+// Additional initialize configuration for gemma.cpp not covered by
+// InferenceConfiguration.
+message GemmaInitializeConfiguration {
+  // The configuration_id for the tokenizer blob. It should match
+  // StreamInitializeRequest.write_configuration.first_request_metadata.configuration_id
+  // for the tokenizer blob.
+  string tokenizer_configuration_id = 1;
+  // The configuration_id for the model weight blob. It should match
+  // StreamInitializeRequest.write_configuration.first_request_metadata.configuration_id
+  // for the model weight blob.
+  string model_weight_configuration_id = 2;
+}
+
+// Additional initialize configuration for llama.cpp engine not covered by
+// InferenceConfiguration.
+message LlamaCppInitializeConfiguration {
+  // The configuration_id for the model weight blob. It should match
+  // StreamInitializeRequest.write_configuration.first_request_metadata.configuration_id
+  // for the model weight blob.
+  string model_weight_configuration_id = 1;
+}
+
+message PaicConfiguration {
+  // The enum value corresponding to PcsPrivateInferenceFeatureName.
+  // This is used to know which feature to use when triggering paic.
+  int32 paic_feature_id = 1;
+}

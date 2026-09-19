@@ -1,0 +1,109 @@
+diff --git a/components/url_formatter/BUILD.gn b/components/url_formatter/BUILD.gn
+index ff424657b5..aab3ad41cc 100644
+--- a/components/url_formatter/BUILD.gn
++++ b/components/url_formatter/BUILD.gn
+@@ -41,8 +41,6 @@ static_library("url_formatter") {
+     "//components/url_formatter/spoof_checks/common_words:common_words_dafsa",
+     "//components/url_formatter/spoof_checks/top_domains:common",
+     "//components/url_formatter/spoof_checks/top_domains:generate_top_domains_trie",
+-    "//net",
+-    "//net:preload_decoder",
+     "//url",
+   ]
+ 
+diff --git a/components/url_formatter/spoof_checks/common_words/BUILD.gn b/components/url_formatter/spoof_checks/common_words/BUILD.gn
+index a5e64f5630..598d6552bc 100644
+--- a/components/url_formatter/spoof_checks/common_words/BUILD.gn
++++ b/components/url_formatter/spoof_checks/common_words/BUILD.gn
+@@ -59,7 +59,6 @@ source_set("common") {
+   public_deps = [ "//base" ]
+   deps = [
+     ":common_words_dafsa",
+-    "//net",
+   ]
+ }
+ 
+diff --git a/components/url_formatter/spoof_checks/top_domains/BUILD.gn b/components/url_formatter/spoof_checks/top_domains/BUILD.gn
+index 5ac8892437..56620b121c 100644
+--- a/components/url_formatter/spoof_checks/top_domains/BUILD.gn
++++ b/components/url_formatter/spoof_checks/top_domains/BUILD.gn
+@@ -29,7 +29,6 @@ executable("top_domain_generator") {
+   deps = [
+     "//base",
+     "//base:i18n",
+-    "//net/tools/huffman_trie:huffman_trie_generator_sources",
+     "//url",
+   ]
+   if (is_ios) {
+@@ -110,7 +109,6 @@ source_set("common") {
+ 
+   deps = [
+     "//base",
+-    "//net",
+   ]
+ }
+ 
+diff --git a/gpu/ipc/host/BUILD.gn b/gpu/ipc/host/BUILD.gn
+index 57d4d8dbbf..a4b5fa54d9 100644
+--- a/gpu/ipc/host/BUILD.gn
++++ b/gpu/ipc/host/BUILD.gn
+@@ -14,7 +14,6 @@ source_set("host") {
+     "//base",
+     "//gpu/config",
+     "//gpu/ipc/common",
+-    "//net",
+     "//ui/base:features",
+     "//ui/gfx",
+     "//ui/gl",
+diff --git a/services/metrics/public/cpp/BUILD.gn b/services/metrics/public/cpp/BUILD.gn
+index c259965548..60582dd62a 100644
+--- a/services/metrics/public/cpp/BUILD.gn
++++ b/services/metrics/public/cpp/BUILD.gn
+@@ -35,7 +35,6 @@ component("metrics_cpp") {
+ 
+   public_deps = [
+     "//base",
+-    "//net",
+     "//services/metrics/public/mojom",
+     "//url",
+   ]
+diff --git a/ui/base/BUILD.gn b/ui/base/BUILD.gn
+index 20b2070af5..9b22aca158 100644
+--- a/ui/base/BUILD.gn
++++ b/ui/base/BUILD.gn
+@@ -70,7 +70,6 @@ component("ui_data_pack") {
+   ]
+ 
+   deps = [
+-    "//net",
+     "//third_party/zlib/google:compression_utils",
+   ]
+ 
+@@ -494,7 +493,6 @@ component("base") {
+     "//build:android_buildflags",
+     "//build:blink_buildflags",
+     "//build:branding_buildflags",
+-    "//net",
+     "//third_party/brotli:dec",
+     "//third_party/icu",
+     "//third_party/modp_b64",
+diff --git a/ui/base/clipboard/BUILD.gn b/ui/base/clipboard/BUILD.gn
+index 3c7a17dbee..0453aac1d1 100644
+--- a/ui/base/clipboard/BUILD.gn
++++ b/ui/base/clipboard/BUILD.gn
+@@ -76,7 +76,6 @@ if (is_linux && use_dbus) {
+       ":file_info",
+       "//base",
+       "//components/dbus",
+-      "//net",
+       "//url",
+     ]
+   }
+@@ -178,7 +177,6 @@ component("clipboard") {
+   deps = [
+     "//base",
+     "//mojo/public/cpp/base",
+-    "//net",
+     "//ui/base:features",
+     "//ui/gfx",
+     "//ui/gfx/geometry",

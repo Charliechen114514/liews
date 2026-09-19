@@ -1,0 +1,42 @@
+{
+  "chromium": {
+    "revision": "3649926a0bb43e258427a6d50c174fcaa4e339ae",
+    "version": "153.0.7978.0",
+    "date": "2026-07-28",
+    "url": "https://chromium.googlesource.com/chromium/src/+/${revision}"
+  },
+  "root_targets": ["//ui/views:views"],
+  "gn_args": {
+    "is_debug": false,
+    "is_component_build": false,
+    "symbol_level": 0,
+    "skia_use_dawn": false,
+    "use_dawn": false,
+    "enable_swiftshader": false,
+    "angle_enable_swiftshader": false,
+    "angle_enable_wgpu": false
+  },
+  "cuts_applied": [
+    "01 components/input 断 blink 适配 + 删除 :mojom (blink/webrtc/ML 全家死)",
+    "02 gles2_sources 断 dawn:proc 残留",
+    "03 cc 断 //media 与 dwa 遥测",
+    "04 ui/gl is_win 块断 swiftshader data_deps",
+    "05 viz mojom 去浏览器面: compositing 去视频采集/blink typemap, gl 去webnn/media/VEA, viz_main 断 network 残留, viz/host 断 webnn",
+    "06 gpu/command_buffer/client 断 dawn:wire+cpp_headers_gen, client_shared_image.{h,cc} 切除 WebGPU 互操作 (BeginWebGPU*Access/WebGPU*ScopedAccess); dawn 编译源归零, 仅剩 codegen action 脚本节点",
+    "07 ui/accessibility/platform 的 automation 块条件 enable_extensions||is_fuchsia → is_fuchsia (Windows 下不再编 Automation API); gin 与 v8 全家脱离闭包, 图节点 16511→14775",
+    "08 net 八点断刀: ui/base(ui_data_pack+base)/clipboard/metrics_cpp/gpu_ipc_host/url_formatter+spoof_checks 的 //net 与 //net:preload_decoder 及 huffman_trie 边全切; net/ 7437 文件出局",
+    "09 boringssl+crypto 断刀: base→boringssl 与 ipc/mojo_core/display_util/tracing/variations→crypto 边全切; sha1/metrics_hashes/edid/sid 换 Windows CNG (BCrypt), rand_util_win 固定 ProcessPrng, etw 指针遮挡换 FNV-1a, variations 种子签名恒败; unguessable_token 手写常数时间比较; crypto/+boringssl/ 出局"
+  ],
+  "cuts_pending": [
+    "sql 链: viz/host→persistent_cache→sql→sqlite (~920文件), 需切 gpu_host_impl 的 persistent_cache 织入 (~15 触点)",
+    "可观测栈母矿: services/tracing (perfetto/variations/snappy/metrics) 经 ui/views 根+cc+viz_common+ipc+latency 五点入链, 大工程",
+    "blink/public/mojom/tokens: services/viz/public/mojom 还挂着 (小体积头文件, 可接受)",
+    "vulkan 栈: vulkan-validation-layers(242源)+spirv-tools(201源) 经 ANGLE 入闭包, 可试 angle_enable_vulkan=false 再压"
+  ],
+  "compile_debts": [
+    "gpu: shared_image_representation.cc 的 Dawn*Representation 段需包 BUILDFLAG(USE_DAWN)||BUILDFLAG(SKIA_USE_DAWN) (否则链接期缺 dawn:proc 符号)",
+    "viz/service: 引用已删 mojom (frame_sink_video_capture/webnn) 与 components/input:mojom 的源文件待切除",
+    "viz/host: gpu_host_impl.{h,cc}/gpu_client.{h,cc} 的 webnn 实现代码待切除",
+    "cc/blink 单测目标: 已知链接失败 (不构建 testonly 即可)"
+  ]
+}

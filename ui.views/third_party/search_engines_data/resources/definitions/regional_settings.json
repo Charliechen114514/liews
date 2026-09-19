@@ -1,0 +1,1428 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+{
+  "aggregation": {
+    "export_items": false,
+    "map_aliases": {
+      "AD": "ZZ",
+      "AG": "ZZ",
+      "AI": "GB",
+      "AQ": "ZZ",
+      "AS": "US",
+      "AW": "NL",
+      "AX": "FI",
+      "BB": "ZZ",
+      "BH": "ZZ",
+      "BI": "ZZ",
+      "BL": "FR",
+      "BM": "GB",
+      "BN": "ZZ",
+      "BQ": "NL",
+      "BS": "ZZ",
+      "BT": "ZZ",
+      "BV": "NO",
+      "BW": "ZZ",
+      "BZ": "ZZ",
+      "CC": "AU",
+      "CF": "ZZ",
+      "CK": "ZZ",
+      "CQ": "GB",
+      "CV": "ZZ",
+      "CW": "NL",
+      "CX": "AU",
+      "DJ": "ZZ",
+      "DM": "ZZ",
+      "EA": "ES",
+      "EH": "ZZ",
+      "ER": "ZZ",
+      "FJ": "ZZ",
+      "FK": "GB",
+      "FM": "ZZ",
+      "FO": "DK",
+      "GA": "ZZ",
+      "GD": "ZZ",
+      "GF": "FR",
+      "GG": "GB",
+      "GI": "GB",
+      "GL": "DK",
+      "GP": "FR",
+      "GQ": "ZZ",
+      "GS": "GB",
+      "GU": "US",
+      "GW": "ZZ",
+      "GY": "ZZ",
+      "HM": "AU",
+      "HT": "ZZ",
+      "IC": "ES",
+      "IM": "GB",
+      "IO": "GB",
+      "JE": "GB",
+      "JM": "ZZ",
+      "KI": "ZZ",
+      "KM": "ZZ",
+      "KN": "ZZ",
+      "KP": "ZZ",
+      "KW": "ZZ",
+      "KY": "GB",
+      "LC": "ZZ",
+      "LR": "ZZ",
+      "LS": "ZZ",
+      "MC": "ZZ",
+      "MF": "FR",
+      "MH": "ZZ",
+      "MP": "US",
+      "MQ": "FR",
+      "MR": "ZZ",
+      "MS": "GB",
+      "MU": "ZZ",
+      "MV": "ZZ",
+      "MW": "ZZ",
+      "NA": "ZZ",
+      "NC": "FR",
+      "NF": "AU",
+      "NI": "ZZ",
+      "NR": "ZZ",
+      "NU": "ZZ",
+      "OM": "ZZ",
+      "PA": "ZZ",
+      "PF": "FR",
+      "PG": "ZZ",
+      "PM": "FR",
+      "PN": "GB",
+      "PR": "US",
+      "PS": "ZZ",
+      "PW": "ZZ",
+      "PY": "ZZ",
+      "QA": "ZZ",
+      "RE": "FR",
+      "RW": "ZZ",
+      "SB": "ZZ",
+      "SC": "ZZ",
+      "SH": "GB",
+      "SJ": "NO",
+      "SM": "IT",
+      "SR": "ZZ",
+      "ST": "ZZ",
+      "SX": "NL",
+      "SY": "ZZ",
+      "SZ": "ZZ",
+      "TC": "GB",
+      "TF": "FR",
+      "TK": "NZ",
+      "TL": "ZZ",
+      "TO": "ZZ",
+      "TT": "ZZ",
+      "TV": "ZZ",
+      "UM": "US",
+      "VA": "IT",
+      "VC": "ZZ",
+      "VG": "GB",
+      "VI": "US",
+      "VU": "ZZ",
+      "WF": "FR",
+      "WS": "ZZ",
+      "YT": "FR",
+      "ZM": "ZZ"
+    },
+    "map_key_type": "country_codes::CountryId",
+    "name": "kRegionalSettings",
+    "type": "map"
+  },
+  "elements": {
+    "AE": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&yandex_ru"
+      ]
+    },
+    "AF": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "AL": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&yep",
+        "&duckduckgo",
+        "&bing"
+      ]
+    },
+    "AM": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "AO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "AR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "AT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia",
+        "&bing",
+        "&yahoo_at",
+        "&qwant",
+        "&privacywall"
+      ]
+    },
+    "AU": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "AZ": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "BA": {
+      "search_engines": [
+        "&google",
+        "&yep",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "BD": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "BE": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia",
+        "&bing",
+        "&qwant",
+        "&privacywall",
+        "&yahoo_emea"
+      ]
+    },
+    "BF": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "BG": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&yep",
+        "&ecosia",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "BJ": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "BO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "BR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "BY": {
+      "search_engines": [
+        "&google",
+        "&yandex_by",
+        "&bing",
+        "&brave",
+        "&duckduckgo"
+      ]
+    },
+    "CA": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "CD": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&you"
+      ]
+    },
+    "CG": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CH": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "CI": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CL": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CM": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CN": {
+      "search_engines": [
+        "&baidu",
+        "&bing",
+        "&sogou",
+        "&so_360",
+        "&google"
+      ]
+    },
+    "CO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "CU": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&yandex_com"
+      ]
+    },
+    "CY": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&qwant",
+        "&yahoo_emea",
+        "&privacywall"
+      ]
+    },
+    "CZ": {
+      "search_engines": [
+        "&google",
+        "&seznam",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&privacywall",
+        "&yahoo_emea"
+      ]
+    },
+    "DE": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&ecosia",
+        "&bing",
+        "&startpage",
+        "&yahoo_de",
+        "&qwant"
+      ]
+    },
+    "DK": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&qwant",
+        "&yahoo_dk",
+        "&privacywall"
+      ]
+    },
+    "DO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "DZ": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "EC": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "EE": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&privacywall",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "EG": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&yandex_com"
+      ]
+    },
+    "ES": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&yahoo_es",
+        "&privacywall",
+        "&qwant"
+      ]
+    },
+    "ET": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "FI": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&qwant",
+        "&privacywall",
+        "&yahoo_fi"
+      ]
+    },
+    "FR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&ecosia",
+        "&qwant",
+        "&duckduckgo",
+        "&bing",
+        "&yahoo_fr",
+        "&privacywall"
+      ]
+    },
+    "GB": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "GE": {
+      "search_engines": [
+        "&google",
+        "&yandex_com",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "GH": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "GM": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&duckduckgo",
+        "&brave",
+        "&ecosia"
+      ]
+    },
+    "GN": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&duckduckgo",
+        "&brave",
+        "&ecosia"
+      ]
+    },
+    "GR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&yahoo_emea",
+        "&ecosia",
+        "&qwant",
+        "&yep"
+      ]
+    },
+    "GT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "HK": {
+      "search_engines": [
+        "&google",
+        "&baidu",
+        "&brave",
+        "&bing",
+        "&naver"
+      ]
+    },
+    "HN": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "HR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&yep",
+        "&privacywall",
+        "&yahoo_emea"
+      ]
+    },
+    "HU": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia",
+        "&yep",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "ID": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&naver"
+      ]
+    },
+    "IE": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&yahoo_uk",
+        "&ecosia",
+        "&privacywall",
+        "&qwant"
+      ]
+    },
+    "IL": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&yandex_ru"
+      ]
+    },
+    "IN": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&yahoo_in",
+        "&duckduckgo"
+      ]
+    },
+    "IQ": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "IR": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "IS": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia",
+        "&privacywall",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "IT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia",
+        "&yahoo_it",
+        "&qwant",
+        "&privacywall"
+      ]
+    },
+    "JO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "JP": {
+      "search_engines": [
+        "&google",
+        "&yahoo_jp",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "KE": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&you"
+      ]
+    },
+    "KG": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "KH": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&naver",
+        "&baidu"
+      ]
+    },
+    "KR": {
+      "search_engines": [
+        "&google",
+        "&naver",
+        "&daum",
+        "&brave",
+        "&bing"
+      ]
+    },
+    "KZ": {
+      "search_engines": [
+        "&google",
+        "&yandex_kz",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "LA": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&naver",
+        "&baidu"
+      ]
+    },
+    "LB": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "LI": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia",
+        "&startpage",
+        "&qwant",
+        "&privacywall"
+      ]
+    },
+    "LK": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "LT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&qwant",
+        "&yahoo_emea",
+        "&yep"
+      ]
+    },
+    "LU": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&qwant",
+        "&yahoo_emea",
+        "&privacywall"
+      ]
+    },
+    "LV": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&privacywall",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "LY": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "MA": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&you"
+      ]
+    },
+    "MD": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "ME": {
+      "search_engines": [
+        "&google",
+        "&yep",
+        "&brave",
+        "&duckduckgo",
+        "&bing"
+      ]
+    },
+    "MG": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "MK": {
+      "search_engines": [
+        "&google",
+        "&yep",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "ML": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&duckduckgo",
+        "&brave",
+        "&ecosia"
+      ]
+    },
+    "MM": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&baidu",
+        "&duckduckgo"
+      ]
+    },
+    "MN": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&naver",
+        "&bing",
+        "&daum"
+      ]
+    },
+    "MO": {
+      "search_engines": [
+        "&google",
+        "&baidu",
+        "&brave",
+        "&bing",
+        "&naver"
+      ]
+    },
+    "MT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia",
+        "&privacywall",
+        "&yahoo_emea",
+        "&qwant"
+      ]
+    },
+    "MX": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "MY": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&baidu",
+        "&duckduckgo"
+      ]
+    },
+    "MZ": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&you",
+        "&duckduckgo"
+      ]
+    },
+    "NE": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "NG": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "NL": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia",
+        "&privacywall",
+        "&yahoo_nl",
+        "&qwant"
+      ]
+    },
+    "NO": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia",
+        "&yahoo_emea",
+        "&privacywall",
+        "&qwant"
+      ]
+    },
+    "NP": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "NZ": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "PE": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "PH": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&naver"
+      ]
+    },
+    "PK": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "PL": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&yahoo_emea",
+        "&privacywall",
+        "&qwant"
+      ]
+    },
+    "PT": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia",
+        "&yep",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "RO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&yahoo_emea",
+        "&ecosia",
+        "&yep",
+        "&qwant"
+      ]
+    },
+    "RS": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&yep",
+        "&duckduckgo",
+        "&bing"
+      ]
+    },
+    "RU": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&duckduckgo",
+        "&brave",
+        "&bing"
+      ]
+    },
+    "SA": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "SD": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "SE": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia",
+        "&yahoo_se",
+        "&qwant",
+        "&privacywall"
+      ]
+    },
+    "SG": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&baidu",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "SI": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&ecosia",
+        "&yep",
+        "&qwant",
+        "&yahoo_emea"
+      ]
+    },
+    "SK": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&duckduckgo",
+        "&bing",
+        "&seznam",
+        "&ecosia",
+        "&privacywall",
+        "&yahoo_emea"
+      ]
+    },
+    "SL": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&you",
+        "&duckduckgo"
+      ]
+    },
+    "SN": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "SO": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "SV": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "TD": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "TG": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "TH": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&naver",
+        "&duckduckgo"
+      ]
+    },
+    "TJ": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "TM": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&duckduckgo",
+        "&bing"
+      ]
+    },
+    "TN": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "TR": {
+      "search_engines": [
+        "&google",
+        "&yandex_tr",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "TW": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&baidu",
+        "&bing",
+        "&yahoo_tw"
+      ]
+    },
+    "TZ": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "UA": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "UG": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "US": {
+      "search_engines": [
+        "&google",
+        "&duckduckgo",
+        "&brave",
+        "&bing",
+        "&ecosia"
+      ]
+    },
+    "UY": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "UZ": {
+      "search_engines": [
+        "&google",
+        "&yandex_ru",
+        "&brave",
+        "&bing",
+        "&naver"
+      ]
+    },
+    "VE": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&you",
+        "&duckduckgo"
+      ]
+    },
+    "VN": {
+      "search_engines": [
+        "&google",
+        "&coccoc",
+        "&brave",
+        "&bing",
+        "&naver"
+      ]
+    },
+    "XK": {
+      "search_engines": [
+        "&google",
+        "&yep",
+        "&brave",
+        "&bing",
+        "&duckduckgo"
+      ]
+    },
+    "YE": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "ZA": {
+      "search_engines": [
+        "&google",
+        "&brave",
+        "&bing",
+        "&duckduckgo",
+        "&ecosia"
+      ]
+    },
+    "ZW": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&brave",
+        "&you",
+        "&duckduckgo"
+      ]
+    },
+    "ZZ": {
+      "search_engines": [
+        "&google",
+        "&bing",
+        "&yahoo"
+      ]
+    }
+  }
+}

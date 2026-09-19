@@ -1,0 +1,18 @@
+--- a/build/toolchain/win/toolchain.gni
++++ b/build/toolchain/win/toolchain.gni
+@@ -218,11 +218,11 @@
+       show_includes = "/showIncludes"
+     }
+ 
+-    # -fmodule-name is not supported by MSVC.
++    # -fmodule-name is not supported by MSVC, and stock upstream clang treats
++    # it as C++20 module-interface semantics (rejecting plain TUs with
++    # "missing 'export module' declaration"). PCH goes through /Yc /Yu, so the
++    # flag is unnecessary for both cases and stays empty.
+     module_name_flag = ""
+-    if (toolchain_is_clang) {
+-      module_name_flag = " \"-fmodule-name={{cc_module_name}}_Private\""
+-    }
+ 
+     tool("cc") {
+       precompiled_header_type = "msvc"

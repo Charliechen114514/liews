@@ -1,0 +1,15 @@
+diff --git a/ui/gl/BUILD.gn b/ui/gl/BUILD.gn
+index f389e1de24..ba16e4540f 100644
+--- a/ui/gl/BUILD.gn
++++ b/ui/gl/BUILD.gn
+@@ -342,10 +342,6 @@ component("gl") {
+       "//ui/gfx/mojom:dxgi_info",
+     ]
+ 
+-    data_deps += [
+-      "//third_party/swiftshader/src/Vulkan:icd_file",
+-      "//third_party/swiftshader/src/Vulkan:swiftshader_libvulkan",
+-    ]
+     if (!use_static_angle) {
+       data_deps += [
+         "//third_party/angle:libEGL",

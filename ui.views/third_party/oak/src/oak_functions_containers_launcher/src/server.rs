@@ -1,0 +1,132 @@
+//
+// Copyright 2022 The Project Oak Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// TODO(#4409): this duplicates `oak_functions_launcher/src/server.rs`. Refactor
+// these to share code.
+
+use std::pin::Pin;
+
+use anyhow::Context;
+use futures::{Stream, StreamExt};
+use http::uri::Uri;
+use oak_grpc::oak::session::v1::streaming_session_server::{
+    StreamingSession, StreamingSessionServer,
+};
+use oak_proto_rust::oak::{
+    attestation::v1::{Endorsements, Evidence},
+    functions::InvokeRequest,
+    session::v1::{
+        EndorsedEvidence, GetEndorsedEvidenceResponse, InvokeResponse, RequestWrapper,
+        ResponseWrapper, request_wrapper, response_wrapper,
+    },
+};
+use tokio::net::UnixListener;
+use tokio_stream::wrappers::UnixListenerStream;
+use tonic::{Request, Response, Status, Streaming, transport::Server};
+
+use crate::OakFunctionsClient;
+
+pub struct SessionProxy {
+    connector_handle: OakFunctionsClient,
+    evidence: Evidence,
+    endorsements: Endorsements,
+}
+
+#[tonic::async_trait]
+impl StreamingSession for SessionProxy {
+    type StreamStream =
+        Pin<Box<dyn Stream<Item = Result<ResponseWrapper, Status>> + Send + 'static>>;
+
+    async fn stream(
+        &self,
+        request: Request<Streaming<RequestWrapper>>,
+    ) -> Result<Response<Self::StreamStream>, tonic::Status> {
+        log::info!("handling client request");
+        let mut request_stream = request.into_inner();
+
+        let endorsed_evidence = EndorsedEvidence {
+            evidence: Some(self.evidence.clone()),
+            endorsements: Some(self.endorsements.clone()),
+        };
+        let mut connector_handle = self.connector_handle.clone();
+
+        let response_stream = async_stream::try_stream! {
+            while let Some(request) = request_stream.next().await {
+                let request = request
+                    .map_err(|err| {
+                        tonic::Status::internal(format!("error reading message from request stream: {err}"))
+                    })?
+                    .request
+                    .ok_or_else(|| tonic::Status::invalid_argument("empty request message"))?;
+
+                let response = match request {
+                    request_wrapper::Request::GetEndorsedEvidenceRequest(_) => {
+                        response_wrapper::Response::GetEndorsedEvidenceResponse(GetEndorsedEvidenceResponse {
+                            endorsed_evidence: Some(endorsed_evidence.clone()),
+                        })
+                    }
+                    request_wrapper::Request::InvokeRequest(invoke_request) => {
+                        #[allow(clippy::needless_update)]
+                        let enclave_invoke_request = InvokeRequest {
+                            encrypted_request: invoke_request.encrypted_request,
+                            ..Default::default()
+                        };
+                        let enclave_invoke_response = connector_handle
+                            .handle_user_request(enclave_invoke_request)
+                            .await
+                            .map_err(|err| tonic::Status::internal(format!("error handling client request: {:?}", err)))?
+                            .into_inner();
+
+                        #[allow(clippy::needless_update)]
+                        response_wrapper::Response::InvokeResponse(InvokeResponse {
+                            encrypted_response: enclave_invoke_response.encrypted_response,
+                            ..Default::default()
+                        })
+                    }
+                };
+                yield ResponseWrapper {
+                    response: Some(response),
+                };
+            }
+        };
+
+        Ok(Response::new(Box::pin(response_stream) as Self::StreamStream))
+    }
+}
+
+pub async fn new(
+    addr: Uri,
+    connector_handle: OakFunctionsClient,
+    evidence: Evidence,
+    endorsements: Endorsements,
+) -> anyhow::Result<()> {
+    let server_impl = SessionProxy { connector_handle, evidence, endorsements };
+
+    let router = Server::builder().add_service(StreamingSessionServer::new(server_impl));
+
+    if addr.scheme() == Some(&http::uri::Scheme::HTTP) {
+        let addr =
+            addr.authority().context("invalid URI")?.as_str().parse().context("invalid URI")?;
+        router.serve(addr).await.map_err(anyhow::Error::new)
+    } else if addr.scheme().is_none() {
+        let uds = UnixListener::bind(addr.to_string())?;
+        let stream = UnixListenerStream::new(uds);
+
+        router.serve_with_incoming(stream).await.map_err(anyhow::Error::new)
+    } else {
+        anyhow::bail!("unsupported URI: {}", addr)
+    }
+}

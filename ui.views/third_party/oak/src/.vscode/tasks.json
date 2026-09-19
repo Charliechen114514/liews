@@ -1,0 +1,28 @@
+// https://bazelbuild.github.io/rules_rust/rust_analyzer.html
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Generate rust-project.json",
+            "command": "nix",
+            "args": [
+                "develop",
+                "--command",
+                "just",
+                "gen-rust-project"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": "build",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never",
+                "panel": "dedicated",
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            },
+        },
+    ]
+}

@@ -1,0 +1,75 @@
+# Copyright 2014 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build_overrides/build.gni")
+import("//testing/test.gni")
+
+if (is_android) {
+  component("graphics_provider") {
+    sources = [
+      "common/graphics_memory_dump_provider_android.cc",
+      "common/graphics_memory_dump_provider_android.h",
+      "tracing_export.h",
+    ]
+
+    defines = [ "TRACING_IMPLEMENTATION" ]
+
+    deps = [ "//base" ]
+  }
+}
+
+component("tracing_config") {
+  sources = [
+    "common/background_tracing_state_manager.cc",
+    "common/background_tracing_state_manager.h",
+    "common/pref_names.cc",
+    "common/pref_names.h",
+    "common/tracing_scenarios_config.cc",
+    "common/tracing_scenarios_config.h",
+    "common/tracing_switches.cc",
+    "common/tracing_switches.h",
+    "tracing_export.h",
+  ]
+
+  defines = [ "TRACING_IMPLEMENTATION" ]
+
+  deps = [
+    "//base",
+    "//components/prefs",
+    "//third_party/perfetto:libperfetto",
+    "//third_party/snappy",
+  ]
+}
+
+if (is_win) {
+  component("tracing_etw") {
+    sources = [
+      "common/active_processes_win.cc",
+      "common/active_processes_win.h",
+      "common/etw_consumer_win.cc",
+      "common/etw_consumer_win.h",
+      "common/etw_export_win.cc",
+      "common/etw_export_win.h",
+      "common/etw_system_data_source_win.cc",
+      "common/etw_system_data_source_win.h",
+      "common/inclusion_policy_win.cc",
+      "common/inclusion_policy_win.h",
+      "common/system_log_event_utils_win.cc",
+      "common/system_log_event_utils_win.h",
+      "tracing_export.h",
+    ]
+
+    defines = [ "TRACING_IMPLEMENTATION" ]
+
+    deps = [
+      "//base",
+      "//services/tracing/public/cpp:perfetto_interning_index",
+      "//third_party/perfetto:libperfetto",
+    ]
+  }
+}
+
+
+
+

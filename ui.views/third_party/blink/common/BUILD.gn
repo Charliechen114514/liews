@@ -1,0 +1,18 @@
+config("blink_common_implementation") {
+  defines = [ "BLINK_COMMON_IMPLEMENTATION=1" ]
+}
+
+source_set("common") {
+  sources = [
+    "//third_party/blink/public/common/common_export.h",
+    # 刀16 回收: web_bluetooth_device_id — blink mojom web_bluetooth 的
+    # typemap 生成代码引用其符号, 非 blink 链接也需要.
+    "bluetooth/web_bluetooth_device_id.cc",
+  ]
+  public_configs = [ ":blink_common_implementation" ]
+  deps = [
+    "//base",
+    # 刀18: crypto 出局 (RandBytes 换 base)
+    "//third_party/blink/public/common:headers",
+  ]
+}

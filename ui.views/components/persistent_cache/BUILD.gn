@@ -1,0 +1,70 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+component("persistent_cache") {
+  public = [
+    "backend_storage.h",
+    "backend_type.h",
+    "buffer_provider.h",
+    "client.h",
+    "entry_metadata.h",
+    "lock_state.h",
+    "pending_backend.h",
+    "persistent_cache.h",
+    "persistent_cache_collection.h",
+    "transaction_error.h",
+  ]
+
+  sources = [
+    "backend.cc",
+    "backend.h",
+    "backend_storage.cc",
+    "metrics_util.cc",
+    "metrics_util.h",
+    "pending_backend.cc",
+    "persistent_cache_collection.cc",
+  ]
+
+  if (is_fuchsia) {
+    sources += [ "persistent_cache_fuchsia.cc" ]
+  }
+
+  deps = [ "//components/sqlite_vfs" ]
+
+  public_deps = [
+    "//base",
+    "//components/sqlite_vfs:pending_file_set",
+  ]
+
+  # Cross-process file locks are not available on Fuchsia.
+  if (!is_fuchsia) {
+    sources += [
+      "persistent_cache.cc",
+      "sqlite/backend_storage_delegate.cc",
+      "sqlite/backend_storage_delegate.h",
+      "sqlite/sqlite_backend_impl.cc",
+      "sqlite/sqlite_backend_impl.h",
+      "sqlite/vfs_util.h",
+    ]
+
+    deps += [
+      "//sql",
+      "//third_party/sqlite",
+    ]
+  }
+
+  # See base/component_export.h
+  defines = [ "IS_PERSISTENT_CACHE_IMPL" ]
+
+  friend = [
+    ":perf_tests",
+    ":test_support",
+    ":unit_tests",
+  ]
+}
+
+
+
+if (!is_fuchsia) {
+}

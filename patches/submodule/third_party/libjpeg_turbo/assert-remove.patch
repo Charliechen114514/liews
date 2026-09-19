@@ -1,0 +1,16 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index b423384..ecac3c8 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -11,9 +11,8 @@ if (current_cpu == "arm" || current_cpu == "arm64" || current_cpu == "arm64e") {
+   import("//build/config/arm.gni")
+ }
+ 
+-assert(
+-    use_blink,
+-    "This is not used if blink is not enabled, don't drag it in unintentionally")
++# 刀16: use_blink 断言摘除 — 非 blink 构建下 skia SkJpeg 解码源仍需 libjpeg
++# (meta 目标 //third_party:jpeg 有同样断言, 直接依赖本目标).
+ 
+ source_set("libjpeg_headers") {
+   sources = [

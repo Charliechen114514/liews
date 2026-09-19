@@ -1,0 +1,660 @@
+# Copyright 2023 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+load("@com_github_grpc_grpc//bazel:cc_grpc_library.bzl", "cc_grpc_library")
+load("@com_github_grpc_grpc//bazel:python_rules.bzl", "py_grpc_library")
+load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
+load("@com_google_protobuf//bazel:java_lite_proto_library.bzl", "java_lite_proto_library")
+load("@com_google_protobuf//bazel:java_proto_library.bzl", "java_proto_library")
+load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
+load("@com_google_protobuf//bazel:py_proto_library.bzl", "py_proto_library")
+
+package(
+    default_applicable_licenses = ["//fcp:license"],
+    default_visibility = ["//visibility:public"],
+    licenses = ["notice"],
+)
+
+proto_library(
+    name = "access_policy_proto",
+    srcs = ["access_policy.proto"],
+    deps = [
+        "@com_google_protobuf//:any_proto",
+        "@oak//proto/attestation:reference_value_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "access_policy_cc_proto",
+    deps = [":access_policy_proto"],
+)
+
+java_proto_library(
+    name = "access_policy_java_proto",
+    deps = [":access_policy_proto"],
+)
+
+py_proto_library(
+    name = "access_policy_py_pb2",
+    deps = [":access_policy_proto"],
+)
+
+proto_library(
+    name = "verification_record_proto",
+    srcs = ["verification_record.proto"],
+    deps = [
+        ":access_policy_proto",
+        ":payload_transparency_proto",
+        "@oak//proto/attestation:endorsement_proto",
+        "@oak//proto/attestation:evidence_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "verification_record_cc_proto",
+    deps = [":verification_record_proto"],
+)
+
+proto_library(
+    name = "blob_header_proto",
+    srcs = ["blob_header.proto"],
+    deps = [":payload_metadata_proto"],
+)
+
+cc_proto_library(
+    name = "blob_header_cc_proto",
+    deps = [":blob_header_proto"],
+)
+
+proto_library(
+    name = "key_proto",
+    srcs = ["key.proto"],
+)
+
+cc_proto_library(
+    name = "key_cc_proto",
+    deps = [":key_proto"],
+)
+
+java_proto_library(
+    name = "key_java_proto",
+    deps = [":key_proto"],
+)
+
+py_proto_library(
+    name = "key_py_pb2",
+    deps = [":key_proto"],
+)
+
+proto_library(
+    name = "payload_metadata_proto",
+    srcs = ["payload_metadata.proto"],
+    deps = [
+        "//fcp/client:event_time_range_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "payload_metadata_cc_proto",
+    deps = [":payload_metadata_proto"],
+)
+
+proto_library(
+    name = "payload_transparency_proto",
+    srcs = ["payload_transparency.proto"],
+    deps = [
+        ":key_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "payload_transparency_cc_proto",
+    deps = [":payload_transparency_proto"],
+)
+
+java_proto_library(
+    name = "payload_transparency_java_proto",
+    deps = [":payload_transparency_proto"],
+)
+
+proto_library(
+    name = "aggregation_client_payload_proto",
+    srcs = ["aggregation_client_payload.proto"],
+)
+
+cc_proto_library(
+    name = "aggregation_client_payload_cc_proto",
+    deps = [":aggregation_client_payload_proto"],
+)
+
+proto_library(
+    name = "confidential_transform_proto",
+    srcs = ["confidential_transform.proto"],
+    deps = [
+        "@com_google_googleapis//google/rpc:status_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@oak//proto/crypto:crypto_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "confidential_transform_cc_proto",
+    deps = [":confidential_transform_proto"],
+)
+
+cc_grpc_library(
+    name = "confidential_transform_cc_grpc",
+    srcs = [":confidential_transform_proto"],
+    generate_mocks = True,
+    grpc_only = True,
+    deps = [":confidential_transform_cc_proto"],
+)
+
+py_proto_library(
+    name = "confidential_transform_py_proto",
+    deps = [":confidential_transform_proto"],
+)
+
+proto_library(
+    name = "sql_query_proto",
+    srcs = ["sql_query.proto"],
+    deps = ["//fcp/protos:data_type_proto"],
+)
+
+cc_proto_library(
+    name = "sql_query_cc_proto",
+    deps = [":sql_query_proto"],
+)
+
+py_proto_library(
+    name = "sql_query_py_proto",
+    deps = [":sql_query_proto"],
+)
+
+java_lite_proto_library(
+    name = "sql_query_java_proto_lite",
+    deps = [":sql_query_proto"],
+)
+
+proto_library(
+    name = "tff_config_proto",
+    srcs = ["tff_config.proto"],
+    deps = [
+        "@org_tensorflow_federated//tensorflow_federated/proto/v0:executor_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "tff_config_cc_proto",
+    deps = [":tff_config_proto"],
+)
+
+py_proto_library(
+    name = "tff_config_py_pb2",
+    deps = [":tff_config_proto"],
+)
+
+proto_library(
+    name = "fed_sql_container_config_proto",
+    srcs = ["fed_sql_container_config.proto"],
+    deps = [
+        ":access_policy_proto",
+        ":confidential_transform_proto",
+        ":private_inference_proto",
+        ":private_logger_uploads_config_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@org_tensorflow_federated//tensorflow_federated/cc/core/impl/aggregation/protocol:configuration_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "fed_sql_container_config_cc_proto",
+    deps = [":fed_sql_container_config_proto"],
+)
+
+proto_library(
+    name = "file_info_proto",
+    srcs = ["file_info.proto"],
+)
+
+py_proto_library(
+    name = "file_info_py_pb2",
+    deps = [":file_info_proto"],
+)
+
+proto_library(
+    name = "min_sep_data_source_proto",
+    srcs = ["min_sep_data_source.proto"],
+)
+
+py_proto_library(
+    name = "min_sep_data_source_py_pb2",
+    deps = [":min_sep_data_source_proto"],
+)
+
+cc_proto_library(
+    name = "file_info_cc_proto",
+    deps = [":file_info_proto"],
+)
+
+proto_library(
+    name = "blob_data_proto",
+    srcs = ["blob_data.proto"],
+    deps = [":confidential_transform_proto"],
+)
+
+cc_proto_library(
+    name = "blob_data_cc_proto",
+    deps = [":blob_data_proto"],
+)
+
+proto_library(
+    name = "sentence_transformers_config_proto",
+    srcs = ["sentence_transformers_config.proto"],
+)
+
+py_proto_library(
+    name = "sentence_transformers_config_py_pb2",
+    deps = [":sentence_transformers_config_proto"],
+)
+
+cc_proto_library(
+    name = "sentence_transformers_config_cc_proto",
+    deps = [":sentence_transformers_config_proto"],
+)
+
+proto_library(
+    name = "nn_histogram_config_proto",
+    srcs = ["nn_histogram_config.proto"],
+)
+
+cc_proto_library(
+    name = "nn_histogram_config_cc_proto",
+    deps = [":nn_histogram_config_proto"],
+)
+
+proto_library(
+    name = "mauve_score_config_proto",
+    srcs = ["mauve_score_config.proto"],
+)
+
+cc_proto_library(
+    name = "mauve_score_config_cc_proto",
+    deps = [":mauve_score_config_proto"],
+)
+
+py_proto_library(
+    name = "mauve_score_config_py_pb2",
+    deps = [":mauve_score_config_proto"],
+)
+
+proto_library(
+    name = "sql_data_ingress_config_proto",
+    srcs = ["sql_data_ingress_config.proto"],
+    deps = [
+        ":private_logger_uploads_config_proto",
+        ":sql_query_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "sql_data_ingress_config_cc_proto",
+    deps = [":sql_data_ingress_config_proto"],
+)
+
+# --------------------------------------------------------------------
+# signed_endorsements.proto
+
+proto_library(
+    name = "signed_endorsements_proto",
+    srcs = ["signed_endorsements.proto"],
+    deps = [
+        ":payload_transparency_proto",
+        "@oak//proto/attestation:endorsement_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "signed_endorsements_cc_proto",
+    deps = [":signed_endorsements_proto"],
+)
+
+java_proto_library(
+    name = "signed_endorsements_java_proto",
+    deps = [":signed_endorsements_proto"],
+)
+
+py_proto_library(
+    name = "signed_endorsements_py_pb2",
+    deps = [":signed_endorsements_proto"],
+)
+
+# --------------------------------------------------------------------
+# access_policy_endorsement_options.proto
+
+proto_library(
+    name = "access_policy_endorsement_options_proto",
+    srcs = ["access_policy_endorsement_options.proto"],
+    deps = [
+        ":key_proto",
+        "@oak//proto/attestation:reference_value_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "access_policy_endorsement_options_cc_proto",
+    deps = [":access_policy_endorsement_options_proto"],
+)
+
+java_proto_library(
+    name = "access_policy_endorsement_options_java_proto",
+    deps = [":access_policy_endorsement_options_proto"],
+)
+
+py_proto_library(
+    name = "access_policy_endorsement_options_py_pb2",
+    deps = [":access_policy_endorsement_options_proto"],
+)
+
+proto_library(
+    name = "attestation_transparency_service_proto",
+    srcs = ["attestation_transparency_service.proto"],
+    deps = [
+        ":payload_transparency_proto",
+        "@oak//proto/session:session_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "attestation_transparency_service_cc_proto",
+    deps = [":attestation_transparency_service_proto"],
+)
+
+proto_library(
+    name = "private_inference_proto",
+    srcs = ["private_inference.proto"],
+)
+
+cc_proto_library(
+    name = "private_inference_cc_proto",
+    deps = [":private_inference_proto"],
+)
+
+py_proto_library(
+    name = "private_inference_py_pb2",
+    deps = [":private_inference_proto"],
+)
+
+proto_library(
+    name = "program_worker_proto",
+    srcs = ["program_worker.proto"],
+    deps = ["@com_google_protobuf//:any_proto"],
+)
+
+cc_proto_library(
+    name = "program_worker_cc_proto",
+    deps = [":program_worker_proto"],
+)
+
+cc_grpc_library(
+    name = "program_worker_cc_grpc",
+    srcs = [":program_worker_proto"],
+    generate_mocks = True,
+    grpc_only = True,
+    deps = [":program_worker_cc_proto"],
+)
+
+proto_library(
+    name = "data_read_write_proto",
+    srcs = ["data_read_write.proto"],
+    deps = [
+        ":confidential_transform_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "data_read_write_cc_proto",
+    deps = [":data_read_write_proto"],
+)
+
+cc_grpc_library(
+    name = "data_read_write_cc_grpc",
+    srcs = [":data_read_write_proto"],
+    generate_mocks = True,
+    grpc_only = True,
+    deps = [":data_read_write_cc_proto"],
+)
+
+py_proto_library(
+    name = "data_read_write_py_proto",
+    deps = [":data_read_write_proto"],
+)
+
+py_grpc_library(
+    name = "data_read_write_py_grpc",
+    srcs = [":data_read_write_proto"],
+    deps = [":data_read_write_py_proto"],
+)
+
+proto_library(
+    name = "computation_delegation_proto",
+    srcs = ["computation_delegation.proto"],
+    deps = [
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "computation_delegation_cc_proto",
+    deps = [":computation_delegation_proto"],
+)
+
+cc_grpc_library(
+    name = "computation_delegation_cc_grpc",
+    srcs = [":computation_delegation_proto"],
+    generate_mocks = True,
+    grpc_only = True,
+    deps = [":computation_delegation_cc_proto"],
+)
+
+py_proto_library(
+    name = "computation_delegation_py_proto",
+    deps = [":computation_delegation_proto"],
+)
+
+py_grpc_library(
+    name = "computation_delegation_py_grpc",
+    srcs = [":computation_delegation_proto"],
+    deps = [":computation_delegation_py_proto"],
+)
+
+proto_library(
+    name = "kms_proto",
+    srcs = ["kms.proto"],
+    deps = [
+        ":payload_transparency_proto",
+        "@com_google_googleapis//google/rpc:status_proto",
+        "@com_google_protobuf//:any_proto",
+        "@com_google_protobuf//:duration_proto",
+        "@com_google_protobuf//:timestamp_proto",
+        "@oak//proto/attestation:endorsement_proto",
+        "@oak//proto/attestation:evidence_proto",
+        "@oak//proto/crypto:crypto_proto",
+        "@oak//proto/session:session_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "kms_cc_proto",
+    deps = [":kms_proto"],
+)
+
+proto_library(
+    name = "program_executor_tee_proto",
+    srcs = ["program_executor_tee_config.proto"],
+    deps = [
+        "@oak//proto/attestation:reference_value_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "program_executor_tee_cc_proto",
+    deps = [":program_executor_tee_proto"],
+)
+
+py_proto_library(
+    name = "program_executor_tee_py_pb2",
+    deps = [":program_executor_tee_proto"],
+)
+
+proto_library(
+    name = "data_upload_config_proto",
+    srcs = ["data_upload_config.proto"],
+    deps = [
+        ":signed_endorsements_proto",
+        "//fcp/protos/federatedcompute:confidential_encryption_config_proto",
+    ],
+)
+
+java_proto_library(
+    name = "data_upload_config_java_proto",
+    deps = [":data_upload_config_proto"],
+)
+
+cc_proto_library(
+    name = "data_upload_config_cc_proto",
+    deps = [":data_upload_config_proto"],
+)
+
+proto_library(
+    name = "selection_criteria_proto",
+    srcs = ["selection_criteria.proto"],
+    deps = [
+        ":sql_query_proto",
+        ":windowing_schedule_proto",
+        "@com_google_protobuf//:any_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "selection_criteria_cc_proto",
+    deps = ["selection_criteria_proto"],
+)
+
+py_proto_library(
+    name = "selection_criteria_py_pb2",
+    deps = [":selection_criteria_proto"],
+)
+
+java_lite_proto_library(
+    name = "selection_criteria_java_proto_lite",
+    deps = [
+        ":selection_criteria_proto",
+    ],
+)
+
+java_proto_library(
+    name = "selection_criteria_java_proto",
+    deps = [
+        ":selection_criteria_proto",
+    ],
+)
+
+proto_library(
+    name = "windowing_schedule_proto",
+    srcs = ["windowing_schedule.proto"],
+    deps = [
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_googleapis//google/type:timeofday_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "windowing_schedule_cc_proto",
+    deps = [":windowing_schedule_proto"],
+)
+
+py_proto_library(
+    name = "windowing_schedule_py_pb2",
+    deps = [":windowing_schedule_proto"],
+)
+
+proto_library(
+    name = "message_description_proto",
+    srcs = ["message_description.proto"],
+)
+
+cc_proto_library(
+    name = "message_description_cc_proto",
+    deps = [":message_description_proto"],
+)
+
+proto_library(
+    name = "tee_payload_metadata_proto",
+    srcs = ["tee_payload_metadata.proto"],
+    deps = [
+        ":private_logger_uploads_config_proto",
+        "//fcp/client:event_time_range_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "tee_payload_metadata_cc_proto",
+    deps = [":tee_payload_metadata_proto"],
+)
+
+proto_library(
+    name = "private_logger_uploads_config_proto",
+    srcs = ["private_logger_uploads_config.proto"],
+    deps = [
+        ":message_description_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "private_logger_uploads_config_cc_proto",
+    deps = [":private_logger_uploads_config_proto"],
+)
+
+proto_library(
+    name = "construct_user_session_proto",
+    srcs = ["construct_user_session.proto"],
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+cc_proto_library(
+    name = "construct_user_session_cc_proto",
+    deps = [":construct_user_session_proto"],
+)
+
+proto_library(
+    name = "program_worker_tee_config_proto",
+    srcs = ["program_worker_tee_config.proto"],
+)
+
+cc_proto_library(
+    name = "program_worker_tee_config_cc_proto",
+    deps = [":program_worker_tee_config_proto"],
+)
+
+py_proto_library(
+    name = "program_worker_tee_config_py_pb2",
+    deps = [":program_worker_tee_config_proto"],
+)

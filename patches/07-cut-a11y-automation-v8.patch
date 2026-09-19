@@ -1,0 +1,13 @@
+diff --git a/ui/accessibility/platform/BUILD.gn b/ui/accessibility/platform/BUILD.gn
+index 040207453f..357eb6df02 100644
+--- a/ui/accessibility/platform/BUILD.gn
++++ b/ui/accessibility/platform/BUILD.gn
+@@ -102,7 +102,7 @@ component("platform") {
+     "//ui/display",
+   ]
+ 
+-  if (enable_extensions || is_fuchsia) {
++  if (is_fuchsia) {
+     sources += [
+       # Use by the Automation API and the Accessibility service.
+       # TODO(crbug.com/1357889): Rename to atp/ or javascript/?

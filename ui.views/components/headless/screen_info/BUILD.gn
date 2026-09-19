@@ -1,0 +1,17 @@
+# Copyright 2025 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+source_set("screen_info") {
+  sources = [
+    "headless_screen_info.cc",
+    "headless_screen_info.h",
+  ]
+
+  deps = [
+    "//base",
+    "//third_party/re2",
+    "//ui/gfx/geometry/",
+  ]
+}
+

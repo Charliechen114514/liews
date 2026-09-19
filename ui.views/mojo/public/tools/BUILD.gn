@@ -1,0 +1,7 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# The main target used to aggregate all unit tests for Python-based Mojo tools.
+# This is used to generate a complete isolate which can be pushed to bots to run
+# the tests.

@@ -1,0 +1,315 @@
+diff --git a/components/viz/host/BUILD.gn b/components/viz/host/BUILD.gn
+index 0e77bbc3d0..b7662fa565 100644
+--- a/components/viz/host/BUILD.gn
++++ b/components/viz/host/BUILD.gn
+@@ -46,8 +46,6 @@ viz_component("host") {
+     "//gpu/ipc/common",
+     "//gpu/webgpu:common",
+     "//services/viz/privileged/mojom",
+-    "//services/webnn/host",
+-    "//services/webnn/public/mojom",
+     "//ui/base",
+     "//ui/base:ozone_buildflags",
+     "//ui/gfx",
+@@ -69,10 +67,6 @@ viz_component("host") {
+   if (use_ozone) {
+     deps += [ "//ui/ozone" ]
+   }
+-
+-  if (is_win) {
+-    deps += [ "//services/webnn/public/cpp:win" ]
+-  }
+ }
+ 
+ viz_source_set("unit_tests") {
+diff --git a/components/viz/service/BUILD.gn b/components/viz/service/BUILD.gn
+index ae70acf571..b5e4823239 100644
+--- a/components/viz/service/BUILD.gn
++++ b/components/viz/service/BUILD.gn
+@@ -300,7 +300,6 @@ viz_component("service") {
+     "//cc/paint",
+     "//components/crash/core/common:crash_key",
+     "//components/input",
+-    "//components/input:mojom",
+     "//components/startup_metric_utils",
+ 
+     # Note that dependency on //gpu/ipc/client is for MappableBuffer. This
+diff --git a/services/viz/privileged/mojom/BUILD.gn b/services/viz/privileged/mojom/BUILD.gn
+index e61d1f80ca..bf1a536831 100644
+--- a/services/viz/privileged/mojom/BUILD.gn
++++ b/services/viz/privileged/mojom/BUILD.gn
+@@ -20,7 +20,6 @@ mojom("mojom") {
+   public_deps = [
+     "//components/discardable_memory/public/mojom",
+     "//components/viz/service/debugger/mojom",
+-    "//services/network/public/mojom",
+     "//services/viz/privileged/mojom/compositing",
+     "//services/viz/privileged/mojom/gl",
+     "//services/viz/public/mojom",
+diff --git a/services/viz/privileged/mojom/compositing/BUILD.gn b/services/viz/privileged/mojom/compositing/BUILD.gn
+index 28b52bb68a..48d3cdd2fd 100644
+--- a/services/viz/privileged/mojom/compositing/BUILD.gn
++++ b/services/viz/privileged/mojom/compositing/BUILD.gn
+@@ -18,9 +18,6 @@ mojom("compositing") {
+     "display_private.mojom",
+     "external_begin_frame_controller.mojom",
+     "frame_sink_manager.mojom",
+-    "frame_sink_manager_test_api.mojom",  # test helpers
+-    "frame_sink_video_capture.mojom",
+-    "frame_sinks_metrics_recorder.mojom",  # test helpers
+     "layered_window_updater.mojom",
+     "overlay_strategy.mojom",
+     "renderer_settings.mojom",
+@@ -29,25 +26,17 @@ mojom("compositing") {
+ 
+   public_deps = [
+     ":features",
+-    "//components/input:mojom",
+     "//gpu/ipc/common:interfaces",
+     "//gpu/ipc/common:surface_handle",
+-    "//media/capture/mojom:video_capture",
+-    "//media/mojo/mojom",
+     "//mojo/public/mojom/base",
+     "//services/viz/public/mojom",
+     "//skia/public/mojom",
+-    "//third_party/blink/public/mojom:mojom_platform",
+     "//ui/display/mojom",
+     "//ui/gfx/geometry/mojom",
+     "//ui/gfx/mojom",
+     "//ui/latency/mojom",
+   ]
+ 
+-  overridden_deps = [ "//third_party/blink/public/mojom:mojom_platform" ]
+-
+-  component_deps = [ "//third_party/blink/public/common" ]
+-
+   traits_public_deps = [
+     "//components/viz/common",
+     "//ui/base:features",
+@@ -70,49 +59,25 @@ mojom("compositing") {
+     enabled_features += [ "can_set_refresh_rate" ]
+   }
+ 
+-  shared_cpp_typemaps = [
++  cpp_typemaps = [
+     {
+       types = [
+         {
+-          mojom = "viz.mojom.VideoCaptureTarget"
+-          cpp = "::viz::VideoCaptureTarget"
++          mojom = "viz.mojom.RendererSettings"
++          cpp = "::viz::RendererSettings"
+         },
+         {
+-          mojom = "viz.mojom.VideoCaptureSubTarget"
+-          cpp = "::viz::VideoCaptureSubTarget"
+-          nullable_is_same_type = true
++          mojom = "viz.mojom.DebugRendererSettings"
++          cpp = "::viz::DebugRendererSettings"
+         },
+       ]
+-      traits_headers = [ "//services/viz/public/cpp/compositing/video_capture_target_mojom_traits.h" ]
+-      traits_public_deps += [
+-        "//components/viz/common",
+-        "//ui/gfx/geometry/mojom",
++      traits_headers = [
++        "//services/viz/privileged/cpp/renderer_settings_mojom_traits.h",
+       ]
++      traits_sources = [
++        "//services/viz/privileged/cpp/renderer_settings_mojom_traits.cc",
++      ]
++      traits_public_deps += [ "//ui/gfx/geometry/mojom" ]
+     },
+   ]
+-
+-  cpp_typemaps =
+-      shared_cpp_typemaps + [
+-        {
+-          types = [
+-            {
+-              mojom = "viz.mojom.RendererSettings"
+-              cpp = "::viz::RendererSettings"
+-            },
+-            {
+-              mojom = "viz.mojom.DebugRendererSettings"
+-              cpp = "::viz::DebugRendererSettings"
+-            },
+-          ]
+-          traits_headers = [
+-            "//services/viz/privileged/cpp/renderer_settings_mojom_traits.h",
+-          ]
+-          traits_sources = [
+-            "//services/viz/privileged/cpp/renderer_settings_mojom_traits.cc",
+-          ]
+-          traits_public_deps += [ "//ui/gfx/geometry/mojom" ]
+-        },
+-      ]
+-
+-  blink_cpp_typemaps = shared_cpp_typemaps
+ }
+diff --git a/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom b/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
+index ad19a581d7..b2c86debcc 100644
+--- a/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
++++ b/services/viz/privileged/mojom/compositing/frame_sink_manager.mojom
+@@ -227,12 +227,6 @@ interface FrameSinkManager {
+   // |debug_settings| (show_overdraw_feedback, etc.).
+   UpdateDebugRendererSettings(DebugRendererSettings debug_settings);
+ 
+-  // Clears the ViewTransition resources if they have not been claimed by a
+-  // CompositorFrameSink. `transition_token` identifies the navigation for which
+-  // the resources were cached.
+-  ClearUnclaimedViewTransitionResources(
+-      blink.mojom.ViewTransitionToken transition_token);
+-
+   // Initializes FrameSinksMetricsRecorder to enable the collection of metrics
+   // related to frame sinks.
+   [RuntimeFeature=EnableVizTestApis]
+@@ -291,24 +285,9 @@ interface FrameSinkManagerClient {
+   VerifyThreadIdsDoNotBelongToHost(array<int32> thread_ids)
+       => (bool passed_verification);
+ 
+-  // Allows the GPU process to send the result of a screenshot back to the host
+-  // process. The host stores the screenshot to the destination specified by
+-  // `destination_token`.
+-  //
+-  // This is used to copy a screenshot after same-document navigation committed
+-  // in the renderer process.
+-  OnScreenshotCaptured(
+-      blink.mojom.SameDocNavigationScreenshotDestinationToken destination_token,
+-      CopyOutputResult copy_output_result);
+-
+   // Called by Viz when the connection is established and the shared memory for
+   // touch state is available.
+   OnVizTouchStateAvailable(mojo_base.mojom.ReadOnlySharedMemoryRegion region);
+-
+-  // Called by Viz when a view transition requests to allow the browser to
+-  // shutdown the old renderer process.
+-  OnViewTransitionResourcesCaptured(
+-      blink.mojom.ViewTransitionToken transition_token);
+ };
+ 
+ // Implemented by the GPU process (VizCompositorThread) and called from the
+diff --git a/services/viz/privileged/mojom/gl/BUILD.gn b/services/viz/privileged/mojom/gl/BUILD.gn
+index 94376f0465..338a5a3969 100644
+--- a/services/viz/privileged/mojom/gl/BUILD.gn
++++ b/services/viz/privileged/mojom/gl/BUILD.gn
+@@ -21,9 +21,6 @@ mojom("gl") {
+     "//components/persistent_cache/mojom",
+     "//gpu/ipc/common:interfaces",
+     "//gpu/ipc/common:surface_handle",
+-    "//media/mojo/mojom",
+-    "//services/webnn/public/mojom",
+-    "//third_party/blink/public/mojom/tokens",
+     "//ui/gfx/geometry/mojom",
+     "//ui/gfx/mojom",
+     "//ui/gl/mojom",
+diff --git a/services/viz/privileged/mojom/gl/gpu_host.mojom b/services/viz/privileged/mojom/gl/gpu_host.mojom
+index ccac83cddf..99bce94c20 100644
+--- a/services/viz/privileged/mojom/gl/gpu_host.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_host.mojom
+@@ -80,14 +80,6 @@ interface GpuHost {
+   // track of this decision in case the GPU process crashes.
+   DisableGpuCompositing();
+ 
+-  // Asks the host to pass an isolation key for a given token. The client id
+-  // corresponds to the render process id.
+-  // TODO(dawn:549) Consider using ExecutionContextToken if DocumentToken
+-  //     becomes a part of the ExecutionContextToken.
+-  GetIsolationKey(int32 client_id,
+-                  blink.mojom.WebGPUExecutionContextToken wgpu_context_token)
+-      => (string isolation_key);
+-
+   // Tells the GPU host to store the blob on the given cache handle.
+   StoreBlobToDisk(gpu.mojom.GpuDiskCacheHandle cache_handle,
+                   mojo_base.mojom.ByteString key,
+@@ -95,36 +87,4 @@ interface GpuHost {
+ 
+   // Tells the GPU host to clear the shader disk cache.
+   ClearGrShaderDiskCache();
+-
+-  // Tells the GPU host to ensure the execution providers used by WebNN are
+-  // ready. Returns the package info of available execution providers.
+-  [EnableIf=is_win]
+-  EnsureWebNNExecutionProvidersReady()
+-      => (map<string, webnn.mojom.EpPackageInfo> ep_package_info);
+-
+-  // Requests a CompilerContext in the Compiler process for a specific EP
+-  // device. Each EP device has its own dedicated Compiler process and the
+-  // Browser launches one on first use for that device.
+-  //
+-  // The caller (GPU process) creates both pipes and passes the endpoints
+-  // here. The Browser forwards them to the Compiler process. If the Compiler
+-  // cannot be launched, the pipes are simply dropped (disconnecting the
+-  // peer endpoints).
+-  [EnableIf=is_win]
+-  RequestWebNNCompilerContext(
+-      webnn.mojom.CreateContextOptions context_options,
+-      webnn.mojom.ContextProperties context_properties,
+-      webnn.mojom.EpDeviceInfo target_device,
+-      pending_receiver<webnn.mojom.WebNNCompilerContext>
+-          compiler_context_receiver,
+-      pending_remote<webnn.mojom.WebNNModelLoader> model_loader_remote);
+-
+-  // Tells the GPU host to create a temporary file that can be used to save all
+-  // weights in the WebNN graph. Returns the open file handle if the file was
+-  // successfully created, otherwise return invalid file handle that will be
+-  // caught and prevent the graph from being built.
+-  //
+-  // TODO(crbug.com/364445586): Once the LiteRT MLDrift delegate moves from GPU
+-  // to the renderer process, this interface can be removed entirely.
+-  CreateWebNNWeightsFile() => (mojo_base.mojom.File? file);
+ };
+diff --git a/services/viz/privileged/mojom/gl/gpu_service.mojom b/services/viz/privileged/mojom/gl/gpu_service.mojom
+index f543ed72fd..14120b9d20 100644
+--- a/services/viz/privileged/mojom/gl/gpu_service.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_service.mojom
+@@ -131,23 +131,6 @@ interface GpuService {
+   [EnableIf=is_win]
+   UnregisterDCOMPSurfaceHandle(mojo_base.mojom.UnguessableToken token);
+ 
+-  // Creates a VideoEncodeAcceleratorProvider and binds it to |vea_provider|.
+-  CreateVideoEncodeAcceleratorProvider(
+-      pending_receiver<media.mojom.VideoEncodeAcceleratorProvider> vea_provider);
+-
+-  // Binds the pending receiver used to access the hardware accelerated OS
+-  // machine learning APIs.
+-  [RuntimeFeature=webnn.mojom.features.kWebMachineLearningNeuralNetwork]
+-  BindWebNNContextProvider(
+-      pending_receiver<webnn.mojom.WebNNContextProvider>? receiver,
+-      int32 client_id,
+-      uint64 client_tracing_id,
+-      bool is_incognito);
+-
+-  // Binds the pending receiver used to send the WebNN introspection data.
+-  BindWebNNServiceIntrospection(
+-      pending_receiver<webnn.mojom.WebNNServiceIntrospection>? receiver);
+-
+   // Returns current video memory usage.
+   GetVideoMemoryUsageStats() => (gpu.mojom.VideoMemoryUsageStats stats);
+ 
+diff --git a/services/viz/public/mojom/BUILD.gn b/services/viz/public/mojom/BUILD.gn
+index f78fa897f7..946017d478 100644
+--- a/services/viz/public/mojom/BUILD.gn
++++ b/services/viz/public/mojom/BUILD.gn
+@@ -65,7 +65,6 @@ mojom("mojom") {
+     "//cc/mojom:mojom_browser_controls",
+     "//cc/mojom:mojom_layer_trees",
+     "//gpu/ipc/common:interfaces",
+-    "//media/mojo/mojom:video_encode",
+     "//mojo/public/mojom/base",
+     "//services/viz/public/mojom/compositing:shared_image_format",
+     "//services/viz/public/mojom/compositing/internal:singleplanar_format",
+diff --git a/services/viz/public/mojom/gpu.mojom b/services/viz/public/mojom/gpu.mojom
+index 3ac50b6d39..124af4d443 100644
+--- a/services/viz/public/mojom/gpu.mojom
++++ b/services/viz/public/mojom/gpu.mojom
+@@ -31,9 +31,4 @@ interface Gpu {
+   [EnableIf=is_chromeos]
+   CreateJpegDecodeAccelerator(
+       pending_receiver<chromeos_camera.mojom.MjpegDecodeAccelerator> jda);
+-
+-  // Creates a VideoEncodeAcceleratorProvider and binds it to |vea_provider|.
+-  CreateVideoEncodeAcceleratorProvider(
+-      pending_receiver<media.mojom.VideoEncodeAcceleratorProvider>
+-          vea_provider);
+ };

@@ -1,0 +1,41 @@
+--- a/build/rust/rust_bindgen.gni
++++ b/build/rust/rust_bindgen.gni
+@@ -17,14 +17,14 @@
+   _bindgen_path = "${_bindgen_path}.exe"
+ }
+ 
+-# On Windows, the libclang.dll is beside the bindgen.exe, otherwise it is in
+-# ../lib.
++# On Windows, the libclang.dll comes from the clang toolchain (clang_base_path),
++# otherwise it is beside the bindgen.exe / in ../lib.
+ _libclang_path = rust_bindgen_root
+ if (!use_chromium_rust_toolchain &&
+     (current_cpu == "ppc64" || current_cpu == "s390x")) {
+   _libclang_path = rust_sysroot_absolute + "/lib64"
+ } else if (host_os == "win") {
+-  _libclang_path += "/bin"
++  _libclang_path = clang_base_path + "/bin"
+ } else {
+   _libclang_path += "/lib"
+ }
+
+--- a/build/rust/rust_bindgen_generator.gni
++++ b/build/rust/rust_bindgen_generator.gni
+@@ -24,14 +24,14 @@
+   _rustfmt_path = "${_rustfmt_path}.exe"
+ }
+ 
+-# On Windows, the libclang.dll is beside the bindgen.exe, otherwise it is in
+-# ../lib.
++# On Windows, the libclang.dll comes from the clang toolchain (clang_base_path),
++# otherwise it is beside the bindgen.exe / in ../lib.
+ _libclang_path = rust_bindgen_root
+ if (!use_chromium_rust_toolchain &&
+     (host_cpu == "ppc64" || host_cpu == "s390x")) {
+   _libclang_path = rust_sysroot_absolute + "/lib64"
+ } else if (host_os == "win") {
+-  _libclang_path += "/bin"
++  _libclang_path = clang_base_path + "/bin"
+ } else {
+   _libclang_path += "/lib"
+ }

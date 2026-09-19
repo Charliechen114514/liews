@@ -1,0 +1,651 @@
+//
+// Copyright 2025 The Project Oak Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Private memory service definition: A memory consists of a datablob content
+// and one or more tags. The service allows users to add a tagged memory and get
+// the memories by tags.
+
+syntax = "proto3";
+
+package oak.private_memory;
+
+import "google/protobuf/timestamp.proto";
+import "google/rpc/status.proto";
+import "proto/session/session.proto";
+
+message Embedding {
+  // Search will only match embeddings that use the same model_signature.
+  string model_signature = 1;
+  // The actual embedding values.
+  repeated float values = 2;
+}
+
+message MemoryValue {
+  oneof value {
+    bytes bytes_val = 1;
+    int64 int64_val = 2;
+    string string_val = 3;
+  }
+
+  string mime_type = 4;
+}
+
+message MemoryContent {
+  map<string, MemoryValue> contents = 1;
+}
+
+message ParamValue {
+  oneof value {
+    int64 int64_val = 1;
+    string string_val = 2;
+    float float_val = 3;
+    bool bool_val = 4;
+  }
+}
+
+message LLMViewValue {
+  string mime_type = 1;
+  oneof value {
+    // The processed, flattened text
+    // derived from the Memory (e.g., a paragraph, a transcript segment, or a
+    // summary).
+    string text_value = 2;
+    // Multimodal Support. Specific non-text elements
+    // that the LLM can process directly (e.g., images associated with the
+    // text_value).
+    bytes media_value = 3;
+  }
+}
+
+// A collection of LLMViewValues for a single LLMView.
+// When used for inference, the order of the values is preserved. However, when
+// generating the embedding, the content will be embedded as a whole in an
+// unordered way.
+message LLMViewContent {
+  repeated LLMViewValue values = 1;
+}
+
+message LLMView {
+  // Optional client-provided view type, used to differentiate categories.
+  // e.g. for a chat: 'summary', 'conversation_slice', 'participants'
+  string type = 1;
+
+  // Optional client-provided parameters, used to differentiate this view from
+  // other views of the same type, or for view regeneration.
+  // e.g. start_index = 100, end_index = 200
+  map<string, ParamValue> params = 2;
+
+  Embedding embedding = 11;
+
+  // The content for generating the embedding.
+  oneof view {
+    string text_view = 12;
+    LLMViewContent multimodal_view = 13;
+  }
+
+  // ==== Following fields are for prototyping, clients should ignore. ====
+
+  // The unique identifier of the view.
+  string id = 20;
+
+  // Reserved fields for future use.
+  reserved 3 to 10;
+}
+
+message LLMViews {
+  repeated LLMView llm_views = 1;
+}
+
+message MemorySource {
+  // Required. The identifier of the source for DMA compliance.
+  string source_id = 1;
+}
+
+message Memory {
+  // Unique identifier, assigned by Sealed Memory Service.
+  string id = 1;
+  // (Optional) Unique name, set by client. See go/named-sealed-memories.
+  string name = 10;
+  repeated string tags = 3;
+  MemoryContent content = 5;
+  // The time when the memory is uploaded. Set by backend. Updated whenever the
+  // memory is updated, i.e. when calling AddMemory with an existing memory id.
+  google.protobuf.Timestamp created_timestamp = 6;
+  // The time when the event described by the data happens. Should be set by the
+  // client. If not set, the `created_timestamp` will be used for time
+  // calculations (e.g. filtering by time).
+  google.protobuf.Timestamp event_timestamp = 7;
+  // The time when the memory is considered to be expired. Should be
+  // set by the client. If not set, the memory will never expire.
+  google.protobuf.Timestamp expiration_timestamp = 9;
+
+  LLMViews views = 8;
+
+  // Information about how/where the memory was created.
+  MemorySource source = 11;
+
+  reserved 2, 4;
+  // next_id: 12
+}
+
+enum MemoryField {
+  UNKNOWN = 0;               // Default value, should not be used.
+  ID = 1;                    // The 'id' field of the Memory message.
+  TAGS = 2;                  // The 'tags' field.
+  CONTENT = 4;               // The 'content' field .
+  CREATED_TIMESTAMP = 5;     // The 'created_timestamp' field.
+  EVENT_TIMESTAMP = 6;       // The 'event_timestamp' field.
+  EXPIRATION_TIMESTAMP = 7;  // The 'expiration_timestamp' field.
+  NAME = 8;                  // The 'name' field.
+  VIEWS = 9;                 // The 'views' field.
+  reserved 3;                // Reserved 3.
+}
+
+message AddMemoryRequest {
+  Memory memory = 1;
+}
+
+message AddMemoryResponse {
+  string id = 1;
+}
+
+message AddMemoriesRequest {
+  repeated Memory memories = 1;
+}
+
+message AddMemoriesResponse {
+  message AddMemoryResult {
+    oneof result {
+      // The ID of the successfully added memory.
+      string id = 1;
+      // The error status if the memory failed to be added.
+      google.rpc.Status error = 2;
+    }
+  }
+  // Results in the same order as the memories in the request.
+  repeated AddMemoryResult results = 1;
+}
+
+message GetMemoriesRequest {
+  string tag = 1;
+  // The maximum number of memories to return. The service may return fewer than
+  // this value.
+  // The `page_size` should keep the same as the previous request if
+  // `page_token` is set.
+  int32 page_size = 2;
+  ResultMask result_mask = 3;
+  // A page token, received from a previous `GetMemories` call.
+  // Provide this to retrieve the subsequent page.
+  //
+  // When paginating, all other parameters provided to `GetMemories` must match
+  // the call that provided the page token.
+  string page_token = 4;
+}
+
+message GetMemoriesResponse {
+  repeated Memory memories = 1;
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no more results.
+  string next_page_token = 2;
+}
+
+message ResetMemoryRequest {}
+
+message ResetMemoryResponse {
+  bool success = 1;
+  string error_message = 2;
+}
+
+// This is used to indicate that the request is invalid.
+message InvalidRequestResponse {
+  string error_message = 1;
+}
+
+message SessionConfig {
+  // If true, the database will not be persisted when the session closes. Client
+  // must explicitly call SyncDatabaseRequest to commit changes. False by
+  // default (database is persisted on close.)
+  bool disable_persistence_on_close = 1;
+}
+
+message KeySyncRequest {
+  // The key should be a byte string of size 32 bytes (256 bits).
+  bytes key_encryption_key = 1;
+
+  // The ID of the user. Currently it has one to one mapping to the database.
+  // That is, each id has a unique database.
+  string pm_uid = 2;
+
+  SessionConfig session_config = 3;
+}
+
+message KeySyncResponse {
+  enum Status {
+    // Default status, should ideally not be sent by the server. Client can
+    // treat this as an error if received.
+    UNSPECIFIED = 0;
+    SUCCESS = 1;
+    // The key is incorrect (e.g., derived using wrong algorithm or wrong salt).
+    // The clients should derive the key again with the correct information
+    // (e.g., make sure they use the stored key derivation info from the
+    // server).
+    INVALID_KEY = 3;
+    // The pm_uid doesn't exist. The users should try to register themselves
+    // first
+    INVALID_PM_UID = 4;
+  }
+  Status status = 1;
+}
+
+message GetMemoryByIdRequest {
+  string id = 1;
+  ResultMask result_mask = 2;
+}
+
+message GetMemoryByIdResponse {
+  // If the memory is found, the success field is true. Otherwise, the success
+  // field is false and the memory field is empty.
+  bool success = 1;
+  Memory memory = 2;
+}
+
+message GetMemoriesByIdRequest {
+  repeated string ids = 1;
+  ResultMask result_mask = 2;
+}
+
+message GetMemoriesByIdResponse {
+  // Memories can be returned in an arbitrary order.
+  // If any memory is not found, it will be skipped and the id will be saved
+  // in the `not_found_ids` field.
+  repeated Memory memories = 1;
+  repeated string not_found_ids = 2;
+}
+
+message GetMemoryByNameRequest {
+  string name = 1;
+  ResultMask result_mask = 2;
+}
+
+message GetMemoryByNameResponse {
+  // If the memory is found, the success field is true. Otherwise, the success
+  // field is false and the memory field is empty.
+  bool success = 1;
+  Memory memory = 2;
+}
+
+enum MatchType {
+  MATCH_TYPE_UNSPECIFIED = 0;
+  MATCH_TYPE_EQUAL = 1;
+  MATCH_TYPE_GTE = 2;
+  MATCH_TYPE_LTE = 3;
+  MATCH_TYPE_LT = 4;
+  MATCH_TYPE_GT = 5;
+}
+
+// Defines which parts of the Memory object to return.
+// If `include_*` is provided, only the content defined in it will be returned.
+// `CONTENT` should be provided if `include_content_fields` is not empty.
+message ResultMask {
+  repeated string include_content_fields = 1;
+  repeated MemoryField include_fields = 2;
+}
+
+// Search API v2. Examples:
+// Get all memories with a specific tag.
+// {
+//   filter {
+//     tags_filter {
+//       value: "tag1"
+//     }
+//   }
+// }
+// Get all memories that match either a name or a filter, most recent first.
+// {
+//   filter {
+//     or_operator {
+//       filters {
+//         name_filter {
+//           value: "name1"
+//         }
+//       }
+//       filters {
+//         tags_filter {
+//           value: "tag1"
+//         }
+//       }
+//     }
+//   }
+//   sort {
+//     created_timestamp_sort {
+//       order: ORDER_DESCENDING
+//     }
+//   }
+// }
+message SearchMemoriesRequest {
+  SearchMemoriesFilter filter = 1;
+
+  // Sort is repeated for tiebreaking.
+  // Memories with identical sort order will be returned in arbitrary (but
+  // consistent) order.
+  repeated SearchMemoriesSort sort = 2;
+
+  // If non-zero, limit responses to this number of memories total (across all
+  // pages). Fewer memories than this may be returned.
+  int32 limit = 3;
+
+  // For pagination, set page_size and provide the page token from the response
+  // on subsequent requests (no token will be present once no more results are
+  // available). Other fields must be identical across calls.
+  int32 page_size = 4;
+  string page_token = 5;
+
+  // If result_mask is set, only fields specified by it will be returned.
+  ResultMask result_mask = 6;
+}
+
+message SearchMemoriesFilter {
+  oneof value {
+    SearchMemoriesFilters and_operator = 1;
+    SearchMemoriesFilters or_operator = 2;
+    SearchMemoriesFilter not_operator = 3;
+
+    StringFilter id_filter = 10;
+    StringFilter name_filter = 11;
+    StringFilter tags_filter = 12;  // Will match if ANY of the tags match.
+    TimeFilter created_timestamp_filter = 13;
+    TimeFilter event_timestamp_filter = 14;
+    TimeFilter expiration_timestamp_filter = 15;
+    EmbeddingFilter embedding_filter = 16;
+  }
+
+  reserved 4 to 9;  // In case we want to add more operators, e.g. nand.
+}
+
+message SearchMemoriesFilters {
+  repeated SearchMemoriesFilter filters = 1;
+}
+
+message StringFilter {
+  string value = 1;  // Exact match.
+}
+
+message TimeFilter {
+  ComparisonType comparison = 1;
+  google.protobuf.Timestamp value = 2;  // Reference value for comparison.
+}
+
+message EmbeddingFilter {
+  Embedding embedding = 1;  // The embedding being compared to.
+  float minimum_score = 2;  // Similarity is calculated using dot product.
+  // If set, only embeddings for this type of LLMView will be considered.
+  string view_type = 3;
+}
+
+enum ComparisonType {
+  COMPARISON_TYPE_UNSPECIFIED = 0;  // EQ will be used.
+  COMPARISON_TYPE_EQ = 1;
+  COMPARISON_TYPE_GTE = 2;
+  COMPARISON_TYPE_LTE = 3;
+  COMPARISON_TYPE_LT = 4;
+  COMPARISON_TYPE_GT = 5;
+}
+
+message SearchMemoriesSort {
+  oneof sort {
+    // Memories that have no scores (e.g. b/c there is no timestamp or
+    // embedding) will be sorted at the end.
+    TimeSort created_timestamp_sort = 1;
+    TimeSort event_timestamp_sort = 2;
+    TimeSort expiration_timestamp_sort = 3;
+    EmbeddingSort embedding_sort = 4;
+  }
+}
+
+message TimeSort {
+  SortOrder order = 1;
+}
+
+message EmbeddingSort {
+  SortOrder order = 1;
+  Embedding embedding = 2;  // The embedding being compared to.
+  // If set, only embeddings for this type of LLMView will be considered.
+  string view_type = 3;
+}
+
+enum SortOrder {
+  // DESCENDING order will be used by default.
+  ORDER_UNSPECIFIED = 0;
+
+  // Largest value first.
+  // For timestamp sort, this means latest memory will be first.
+  // For embedding sort, this means the most similar memory will be first.
+  ORDER_DESCENDING = 1;
+
+  // Smallest value first.
+  ORDER_ASCENDING = 2;
+}
+
+message SearchMemoriesResponse {
+  // Responses (sorted according to requested sorting, if any).
+  repeated SearchMemoriesResultItem results = 1;
+
+  // A token to retrieve the next page of results.
+  // If this field is omitted, there are no more results.
+  string next_page_token = 2;
+}
+
+message SearchMemoriesResultItem {
+  Memory memory = 1;
+
+  // Sorting and scoring information to be added in the future, pending design.
+}
+
+message KeyDerivationInfo {
+  bytes kek_salt = 1;     // Salt used for KEK derivation.
+  int32 kek_version = 2;  // Version of the KEK derivation method or key.
+}
+
+message SealedMemoryCredentials {
+  string pm_uid = 1;
+  bytes key_encryption_key = 2;
+}
+
+message UserRegistrationRequest {
+  string pm_uid = 1;
+  bytes key_encryption_key = 2;
+
+  KeyDerivationInfo boot_strap_info = 3;
+}
+
+message UserRegistrationResponse {
+  enum Status {
+    // Default status, should ideally not be sent by the server. Client can
+    // treat this as an error if received.
+    UNSPECIFIED = 0;
+
+    // Successful bootstrap! The user can skip the key sync and directly send
+    // memory related requests.
+    SUCCESS = 1;
+
+    // If the user has been registered, server will return the saved
+    // KeyDerivationInfo with this error. Clients should rederive the key with
+    // the return information.
+    USER_ALREADY_EXISTS = 3;
+  }
+  Status status = 1;
+
+  // Set when status is `USER_ALREADY_EXISTS`
+  KeyDerivationInfo key_derivation_info = 2;
+}
+
+message DeleteMemoryRequest {
+  repeated string ids = 1;
+}
+
+message DeleteMemoryResponse {
+  bool success = 1;
+  string error_message = 2;
+  // IDs that were not found in the database. The delete operation still
+  // succeeds for all other IDs.
+  repeated string not_found_ids = 3;
+}
+
+message GetDatabaseMetricsRequest {
+  // Empty for now, but allows future filtering (e.g., by view_type or tags)
+}
+
+message GetDatabaseMetricsResponse {
+  message MemoryInfo {
+    int64 memory_count = 1;
+    // Total number of LLM view entities across all memories.
+    int64 llm_view_count = 2;
+  }
+
+  message StorageInfo {
+    int64 total_storage_bytes = 1;
+  }
+
+  MemoryInfo memory_info = 1;
+  StorageInfo storage_info = 2;
+}
+
+// Request to synchronously refresh the in-memory database from the latest
+// durable storage snapshot, and persist it back to durable
+// storage. The connection remains open after the sync completes, allowing
+// subsequent requests in the same session.
+message SyncDatabaseRequest {}
+
+message SyncDatabaseResponse {}
+
+message SealedMemoryRequest {
+  oneof request {
+    KeySyncRequest key_sync_request = 6;
+    UserRegistrationRequest user_registration_request = 8;
+
+    AddMemoryRequest add_memory_request = 1;
+    DeleteMemoryRequest delete_memory_request = 9;
+
+    GetMemoryByIdRequest get_memory_by_id_request = 5;
+    GetMemoriesByIdRequest get_memories_by_id_request = 10;
+    GetMemoryByNameRequest get_memory_by_name_request = 11;
+
+    SearchMemoriesRequest search_memories_request = 12;
+
+    // Caution: this deletes all of the user's memories, across all products.
+    ResetMemoryRequest reset_memory_request = 3;
+
+    GetDatabaseMetricsRequest get_database_metrics_request = 13;
+
+    SyncDatabaseRequest sync_database_request = 14;
+
+    AddMemoriesRequest add_memories_request = 15;
+
+    // Use SearchMemoriesRequest instead.
+    GetMemoriesRequest get_memories_request = 2 [deprecated = true];
+  }
+
+  // Optional unique identifier for this request within the session.
+  // It is set by the clients.
+  int32 request_id = 50;
+
+  reserved 4, 7;
+}
+
+message SealedMemoryResponse {
+  oneof response {
+    KeySyncResponse key_sync_response = 6;
+    UserRegistrationResponse user_registration_response = 8;
+
+    AddMemoryResponse add_memory_response = 1;
+    DeleteMemoryResponse delete_memory_response = 9;
+
+    GetMemoryByIdResponse get_memory_by_id_response = 5;
+    GetMemoriesByIdResponse get_memories_by_id_response = 10;
+    GetMemoryByNameResponse get_memory_by_name_response = 11;
+
+    ResetMemoryResponse reset_memory_response = 3;
+
+    SearchMemoriesResponse search_memories_response = 12;
+
+    GetDatabaseMetricsResponse get_database_metrics_response = 13;
+
+    SyncDatabaseResponse sync_database_response = 14;
+
+    AddMemoriesResponse add_memories_response = 15;
+
+    GetMemoriesResponse get_memories_response = 2 [deprecated = true];
+
+    // See "error" field below instead.
+    InvalidRequestResponse invalid_request_response = 4 [deprecated = true];
+
+    // A non-OK status result for a given request.
+    //
+    // If a request is successful, the corresponding response message above will
+    // be populated and returned. This implies an "OK" status result, and no
+    // Status message will be explicitly sent.
+    //
+    // If a provided request was not successful, the server will populate this
+    // field with the error status, rather than sending a response with the
+    // corresponding response type, and the request should be considered
+    // completed.
+    //
+    // TODO: b/474398323 - Update clients to check for this variant.
+    // TODO: b/474398548 - Update Sealed Memory server to populate this variant
+    // for error conditions.
+    google.rpc.Status error = 100;
+  }
+
+  // Propagated from the request_id from the request.
+  int32 request_id = 50;
+
+  reserved 7;
+}
+
+message SealedMemorySessionRequest {
+  .oak.session.v1.SessionRequest session_request = 1;
+}
+
+message SealedMemorySessionResponse {
+  .oak.session.v1.SessionResponse session_response = 1;
+}
+
+// A frame for TLS-based sessions. During the handshake phase, each frame
+// carries a raw TLS record. After the handshake completes, each frame carries
+// TLS-encrypted application data (the ciphertext of a serialized
+// SealedMemoryRequest or SealedMemoryResponse).
+message TlsSessionFrame {
+  bytes tls_frame = 1;
+}
+
+service SealedMemoryService {
+  rpc Invoke(stream oak.session.v1.SessionRequest)
+      returns (stream oak.session.v1.SessionResponse) {}
+
+  // Like Invoke, but the server dispatches application requests concurrently
+  // using FuturesOrdered, which can significantly reduce latency when
+  // individual requests are IO-bound (e.g. database calls).
+  rpc InvokeAsync(stream oak.session.v1.SessionRequest)
+      returns (stream oak.session.v1.SessionResponse) {}
+
+  rpc StartSession(stream SealedMemorySessionRequest)
+      returns (stream SealedMemorySessionResponse) {}
+
+  // Establishes an end-to-end encrypted session using TLS instead of Noise.
+  // The stream carries TLS frames: initial messages form the TLS handshake,
+  // followed by TLS-encrypted application payloads.
+  rpc StartTlsSession(stream TlsSessionFrame) returns (stream TlsSessionFrame) {
+  }
+}

@@ -1,0 +1,642 @@
+diff --git a/services/viz/privileged/mojom/gl/gpu_service.mojom b/services/viz/privileged/mojom/gl/gpu_service.mojom
+index 1e2293a916..3860155757 100644
+--- a/services/viz/privileged/mojom/gl/gpu_service.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_service.mojom
+@@ -16,9 +16,6 @@ import "gpu/ipc/common/surface_handle.mojom";
+ import "gpu/ipc/common/sync_token.mojom";
+ import "media/mojo/mojom/video_encode_accelerator.mojom";  // 刀16 回收: CreateVideoEncodeAcceleratorProvider 需要
+ import "mojo/public/mojom/base/byte_string.mojom";
+-import "services/webnn/public/mojom/features.mojom";  // 刀16 回收: webnn 面恢复
+-import "services/webnn/public/mojom/webnn_context_provider.mojom";  // 刀16 回收
+-import "services/webnn/public/mojom/webnn_service_introspection.mojom";  // 刀16 回收
+ import "mojo/public/mojom/base/process_id.mojom";
+ import "mojo/public/mojom/base/unguessable_token.mojom";  // 刀16: UnregisterDCOMPSurfaceHandle 需要
+ import "ui/gfx/geometry/mojom/geometry.mojom";
+@@ -106,20 +103,6 @@ interface GpuService {
+   CreateVideoEncodeAcceleratorProvider(
+       pending_receiver<media.mojom.VideoEncodeAcceleratorProvider> vea_provider);
+ 
+-  // Binds the pending receiver used to access the hardware accelerated OS
+-  // machine learning APIs. (刀16 回收)
+-  [RuntimeFeature=webnn.mojom.features.kWebMachineLearningNeuralNetwork]
+-  BindWebNNContextProvider(
+-      pending_receiver<webnn.mojom.WebNNContextProvider>? receiver,
+-      int32 client_id,
+-      uint64 client_tracing_id,
+-      bool is_incognito);
+-
+-  // Binds the pending receiver used to send the WebNN introspection data.
+-  // (刀16 回收)
+-  BindWebNNServiceIntrospection(
+-      pending_receiver<webnn.mojom.WebNNServiceIntrospection>? receiver);
+-
+   // Returns current video memory usage.
+   GetVideoMemoryUsageStats() => (gpu.mojom.VideoMemoryUsageStats stats);
+ 
+diff --git a/services/viz/privileged/mojom/gl/gpu_host.mojom b/services/viz/privileged/mojom/gl/gpu_host.mojom
+index 43a0c46c15..db7c7bd597 100644
+--- a/services/viz/privileged/mojom/gl/gpu_host.mojom
++++ b/services/viz/privileged/mojom/gl/gpu_host.mojom
+@@ -15,18 +15,6 @@ import "third_party/blink/public/mojom/tokens/tokens.mojom";  // 刀16 回收: W
+ import "ui/gfx/mojom/gpu_extra_info.mojom";
+ import "url/mojom/url.mojom";
+ 
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/ep_device_info.mojom";  // 刀16 回收: webnn 编译器服务链
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/ep_package_info.mojom";
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_model_loader.mojom";
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_compiler_context.mojom";
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_context_properties.mojom";
+-[EnableIf=is_win]
+-import "services/webnn/public/mojom/webnn_context_provider.mojom";
+ 
+ 
+ 
+@@ -94,30 +82,4 @@ interface GpuHost {
+   // Tells the GPU host to clear the shader disk cache.
+   ClearGrShaderDiskCache();
+ 
+-  // 刀16 回收: webnn 面恢复 (compiler service / weights file / EP providers
+-  // 的 GPU 侧调用者在 services/webnn, impl 链完整).
+-
+-  // Tells the GPU host to ensure the execution providers used by WebNN are
+-  // ready. Returns the package info of available execution providers.
+-  [EnableIf=is_win]
+-  EnsureWebNNExecutionProvidersReady()
+-      => (map<string, webnn.mojom.EpPackageInfo> ep_package_info);
+-
+-  // Requests a CompilerContext in the Compiler process for a specific EP
+-  // device. Each EP device has its own dedicated Compiler process and the
+-  // Browser launches one on first use for that device.
+-  [EnableIf=is_win]
+-  RequestWebNNCompilerContext(
+-      webnn.mojom.CreateContextOptions context_options,
+-      webnn.mojom.ContextProperties context_properties,
+-      webnn.mojom.EpDeviceInfo target_device,
+-      pending_receiver<webnn.mojom.WebNNCompilerContext>
+-          compiler_context_receiver,
+-      pending_remote<webnn.mojom.WebNNModelLoader> model_loader_remote);
+-
+-  // Tells the GPU host to create a temporary file that can be used to save all
+-  // weights in the WebNN graph. Returns the open file handle if the file was
+-  // successfully created, otherwise return invalid file handle that will be
+-  // caught and prevent the graph from being built.
+-  CreateWebNNWeightsFile() => (mojo_base.mojom.File? file);
+ };
+diff --git a/services/viz/privileged/mojom/gl/BUILD.gn b/services/viz/privileged/mojom/gl/BUILD.gn
+index ea73995ecb..5b4d1c1149 100644
+--- a/services/viz/privileged/mojom/gl/BUILD.gn
++++ b/services/viz/privileged/mojom/gl/BUILD.gn
+@@ -22,9 +22,8 @@ mojom("gl") {
+     "//components/persistent_cache/mojom",
+     "//gpu/ipc/common:interfaces",
+     "//gpu/ipc/common:surface_handle",
+-    # 刀16 回收: media VEA + webnn + blink tokens (gpu_host/gpu_service 方法面).
++    # 刀16 回收 (webnn 部分刀18 再裁): media VEA + blink tokens.
+     "//media/mojo/mojom",
+-    "//services/webnn/public/mojom",
+     "//third_party/blink/public/mojom/tokens",
+     "//ui/gfx/geometry/mojom",
+     "//ui/gfx/mojom",
+diff --git a/components/viz/host/gpu_host_impl.h b/components/viz/host/gpu_host_impl.h
+index 7ab6c33cd2..05473d4185 100644
+--- a/components/viz/host/gpu_host_impl.h
++++ b/components/viz/host/gpu_host_impl.h
+@@ -44,8 +44,6 @@
+ 
+ #if BUILDFLAG(IS_WIN)
+ #include "services/viz/privileged/mojom/gl/info_collection_gpu_service.mojom.h"
+-#include "services/webnn/public/mojom/ep_package_info.mojom.h"  // 刀16 回收
+-#include "services/webnn/public/mojom/webnn_context_provider.mojom.h"  // 刀16 回收
+ #include "ui/gfx/mojom/dxgi_info.mojom.h"
+ #endif
+ 
+@@ -58,13 +56,6 @@ class GpuDiskCacheFactory;  // 刀16 回收
+ class GpuDiskCache;
+ }  // namespace gpu
+ 
+-#if BUILDFLAG(IS_WIN)
+-namespace webnn {
+-struct ContextProperties;
+-struct EpDeviceInfo;
+-}  // namespace webnn
+-#endif
+-
+ namespace viz {
+ 
+ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+@@ -113,19 +104,6 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+ #if BUILDFLAG(IS_OZONE)
+     virtual void TerminateGpuProcess(const std::string& message) = 0;
+ #endif
+-#if BUILDFLAG(IS_WIN)
+-    // Requests the Browser to create a CompilerContext in the Compiler
+-    // process, launching it first if needed. (刀16 回收: webnn 面恢复)
+-    virtual void RequestWebNNCompilerContext(
+-        webnn::mojom::CreateContextOptionsPtr context_options,
+-        const webnn::ContextProperties& context_properties,
+-        const webnn::EpDeviceInfo& target_device,
+-        mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-            compiler_context_receiver,
+-        mojo::PendingRemote<webnn::mojom::WebNNModelLoader>
+-            model_loader_remote);
+-#endif
+-
+    protected:
+     virtual ~Delegate() = default;
+   };
+@@ -298,19 +276,6 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+   void GetIsolationKey(int32_t client_id,
+                        const blink::WebGPUExecutionContextToken& token,
+                        GetIsolationKeyCallback cb) override;
+-#if BUILDFLAG(IS_WIN)
+-  void EnsureWebNNExecutionProvidersReady(
+-      EnsureWebNNExecutionProvidersReadyCallback cb) override;
+-  void RequestWebNNCompilerContext(
+-      webnn::mojom::CreateContextOptionsPtr context_options,
+-      const webnn::ContextProperties& context_properties,
+-      const webnn::EpDeviceInfo& target_device,
+-      mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-          compiler_context_receiver,
+-      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote)
+-      override;
+-#endif  // BUILDFLAG(IS_WIN)
+-  void CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback cb) override;
+ 
+   // mojom::GpuLogging:
+   void RecordLogMessage(int32_t severity,
+diff --git a/components/viz/host/gpu_host_impl.cc b/components/viz/host/gpu_host_impl.cc
+index 5aeff338af..8ecbcb280f 100644
+--- a/components/viz/host/gpu_host_impl.cc
++++ b/components/viz/host/gpu_host_impl.cc
+@@ -26,7 +26,6 @@
+ #include "gpu/config/gpu_info.h"
+ #include "gpu/ipc/common/gpu_client_ids.h"
+ #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
+-#include "services/webnn/host/weights_file_provider.h"  // 刀16 回收
+ #include "skia/buildflags.h"
+ #include "gpu/webgpu/dawn_commit_hash.h"  // 刀16 回收: SKIA_USE_DAWN 下 GraphiteDawnCacheVersion 需要 (纯宏头)
+ #include "skia/ext/skia_commit_hash.h"
+@@ -37,9 +36,6 @@
+ #endif
+ 
+ #if BUILDFLAG(IS_WIN)
+-#include "services/webnn/host/execution_provider_initializer.h"  // 刀16 回收
+-#include "services/webnn/public/cpp/context_properties.h"
+-#include "services/webnn/public/cpp/ep_device_info.h"
+ #endif
+ 
+ #if BUILDFLAG(IS_WIN)
+@@ -622,38 +618,8 @@ gpu::GpuProcessHostShmCount* GpuHostImpl::GetShaderCacheShmCountForTesting() {
+ 
+ // 刀16 回收: webnn 面 (compiler context / EP providers / weights file).
+ #if BUILDFLAG(IS_WIN)
+-void GpuHostImpl::EnsureWebNNExecutionProvidersReady(
+-    EnsureWebNNExecutionProvidersReadyCallback cb) {
+-  webnn::EnsureExecutionProvidersReady(std::move(cb));
+-}
+-
+-void GpuHostImpl::Delegate::RequestWebNNCompilerContext(
+-    webnn::mojom::CreateContextOptionsPtr context_options,
+-    const webnn::ContextProperties& context_properties,
+-    const webnn::EpDeviceInfo& target_device,
+-    mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-        compiler_context_receiver,
+-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
+-  // Default: drop the endpoints (pipe disconnects).
+-}
+-
+-void GpuHostImpl::RequestWebNNCompilerContext(
+-    webnn::mojom::CreateContextOptionsPtr context_options,
+-    const webnn::ContextProperties& context_properties,
+-    const webnn::EpDeviceInfo& target_device,
+-    mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-        compiler_context_receiver,
+-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
+-  delegate_->RequestWebNNCompilerContext(
+-      std::move(context_options), context_properties, target_device,
+-      std::move(compiler_context_receiver), std::move(model_loader_remote));
+-}
+ #endif  // BUILDFLAG(IS_WIN)
+ 
+-void GpuHostImpl::CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback cb) {
+-  webnn::CreateWeightsFile(std::move(cb));
+-}
+-
+ void GpuHostImpl::RecordLogMessage(int32_t severity,
+                                    const std::string& header,
+                                    const std::string& message) {
+diff --git a/components/viz/host/BUILD.gn b/components/viz/host/BUILD.gn
+index 216a59dcfa..1d09763a94 100644
+--- a/components/viz/host/BUILD.gn
++++ b/components/viz/host/BUILD.gn
+@@ -42,9 +42,6 @@ viz_component("host") {
+     "//components/persistent_cache",
+     "//gpu/ipc/client",
+     "//gpu/ipc/common",
+-    # 刀16 回收: webnn host 辅助 (gpu_host_impl 的 EP/weights 转发).
+-    "//services/webnn/host",
+-    "//services/webnn/public/mojom",
+     "//services/viz/privileged/mojom",
+     "//ui/base",
+     "//ui/base:ozone_buildflags",
+@@ -64,10 +61,6 @@ viz_component("host") {
+     deps += [ "//ui/accelerated_widget_mac" ]
+   }
+ 
+-  if (is_win) {
+-    deps += [ "//services/webnn/public/cpp:win" ]
+-  }
+-
+   if (use_ozone) {
+     deps += [ "//ui/ozone" ]
+   }
+diff --git a/components/viz/service/gl/gpu_service_impl.h b/components/viz/service/gl/gpu_service_impl.h
+index 54795e7a6c..bddad7e183 100644
+--- a/components/viz/service/gl/gpu_service_impl.h
++++ b/components/viz/service/gl/gpu_service_impl.h
+@@ -47,8 +47,6 @@
+ #include "services/viz/privileged/mojom/gl/gpu_host.mojom.h"
+ #include "services/viz/privileged/mojom/gl/gpu_service.mojom.h"
+ #include "services/viz/privileged/mojom/viz_main.mojom.h"
+-#include "services/webnn/public/mojom/webnn_context_provider.mojom.h"
+-#include "services/webnn/public/mojom/webnn_service_introspection.mojom.h"
+ #include "skia/buildflags.h"
+ #include "third_party/skia/include/core/SkRefCnt.h"
+ #include "ui/gfx/gpu_extra_info.h"
+@@ -76,9 +74,6 @@ namespace media {
+ class MediaGpuChannelManager;
+ }  // namespace media
+ 
+-namespace webnn {
+-class WebNNContextProviderImpl;
+-}  // namespace webnn
+ 
+ namespace viz {
+ 
+@@ -200,16 +195,7 @@ class VIZ_SERVICE_EXPORT GpuServiceImpl
+       mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
+           vea_provider_receiver) override;
+ 
+-  void BindWebNNContextProvider(
+-      mojo::PendingReceiver<webnn::mojom::WebNNContextProvider>
+-          pending_receiver,
+-      int client_id,
+-      uint64_t client_tracing_id,
+-      bool is_incognito) override;
+-
+-  void BindWebNNServiceIntrospection(
+-      mojo::PendingReceiver<webnn::mojom::WebNNServiceIntrospection>
+-          pending_receiver) override;
++  // 刀18: webnn 面已裁 (BindWebNN* 出局).
+ 
+   void GetVideoMemoryUsageStats(
+       GetVideoMemoryUsageStatsCallback callback) override;
+@@ -448,7 +434,6 @@ class VIZ_SERVICE_EXPORT GpuServiceImpl
+   bool IsGMBNV12Supported();
+ #endif
+ 
+-  void CreateWebNNContextProviderIfNeeded();
+ 
+   scoped_refptr<base::SingleThreadTaskRunner> main_runner_;
+   scoped_refptr<base::SingleThreadTaskRunner> io_runner_;
+@@ -523,7 +508,6 @@ class VIZ_SERVICE_EXPORT GpuServiceImpl
+   std::unique_ptr<gpu::DawnContextProvider> dawn_context_provider_;
+ #endif
+ 
+-  std::unique_ptr<webnn::WebNNContextProviderImpl> webnn_context_provider_;
+ 
+   gpu::GpuPersistentCacheCollection persistent_caches_;
+ 
+diff --git a/components/viz/service/gl/gpu_service_impl.cc b/components/viz/service/gl/gpu_service_impl.cc
+index d9537a8378..31916f5870 100644
+--- a/components/viz/service/gl/gpu_service_impl.cc
++++ b/components/viz/service/gl/gpu_service_impl.cc
+@@ -74,7 +74,6 @@ class DawnCachingInterface;  // 刀16: 前置声明 (置空缓存接口用)
+ #include "media/mojo/services/gpu_mojo_media_client.h"
+ #include "media/mojo/services/mojo_video_encode_accelerator_provider.h"
+ #include "mojo/public/cpp/bindings/self_owned_receiver.h"
+-#include "services/webnn/webnn_context_provider_impl.h"
+ #include "skia/buildflags.h"
+ #include "third_party/perfetto/include/perfetto/tracing/track.h"
+ #include "third_party/skia/include/gpu/ganesh/GrDirectContext.h"
+@@ -348,8 +347,7 @@ GpuServiceImpl::~GpuServiceImpl() {
+   media_gpu_channel_manager_.reset();
+   gpu_channel_manager_.reset();
+ 
+-  // WebNN must be destroyed before the scheduler is destroyed.
+-  webnn_context_provider_.reset();
++  // 刀18: webnn 面已裁 (webnn_context_provider_ 出局).
+ 
+   // Scheduler must be destroyed before sync point manager is destroyed.
+   owned_scheduler_.reset();
+@@ -668,55 +666,6 @@ void GpuServiceImpl::CreateVideoEncodeAcceleratorProvider(
+       media_gpu_channel_manager_->AsWeakPtr(), main_runner_);
+ }
+ 
+-void GpuServiceImpl::BindWebNNContextProvider(
+-    mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> pending_receiver,
+-    int client_id,
+-    uint64_t client_tracing_id,
+-    bool is_incognito) {
+-  if (!main_runner_->BelongsToCurrentThread()) {
+-    main_runner_->PostTask(
+-        FROM_HERE, base::BindOnce(&GpuServiceImpl::BindWebNNContextProvider,
+-                                  weak_ptr_, std::move(pending_receiver),
+-                                  client_id, client_tracing_id, is_incognito));
+-    return;
+-  }
+-
+-  CreateWebNNContextProviderIfNeeded();
+-
+-  webnn_context_provider_->BindWebNNContextProvider(
+-      std::move(pending_receiver),
+-      {is_incognito, client_id, client_tracing_id});
+-}
+-
+-void GpuServiceImpl::CreateWebNNContextProviderIfNeeded() {
+-  if (webnn_context_provider_) {
+-    return;
+-  }
+-
+-  webnn_context_provider_ = webnn::WebNNContextProviderImpl::Create(
+-      gpu_feature_info_, gpu_info_, shared_image_manager(),
+-      gpu_channel_manager_->peak_memory_monitor(),
+-      base::BindOnce(&GpuServiceImpl::LoseAllContexts, weak_ptr_),
+-      main_runner(), GetGpuScheduler(), gpu_host_);
+-}
+-
+-void GpuServiceImpl::BindWebNNServiceIntrospection(
+-    mojo::PendingReceiver<webnn::mojom::WebNNServiceIntrospection>
+-        pending_receiver) {
+-  if (!main_runner_->BelongsToCurrentThread()) {
+-    main_runner_->PostTask(
+-        FROM_HERE,
+-        base::BindOnce(&GpuServiceImpl::BindWebNNServiceIntrospection,
+-                       weak_ptr_, std::move(pending_receiver)));
+-    return;
+-  }
+-
+-  CreateWebNNContextProviderIfNeeded();
+-
+-  webnn_context_provider_->BindWebNNServiceIntrospection(
+-      std::move(pending_receiver));
+-}
+-
+ void GpuServiceImpl::GetVideoMemoryUsageStats(
+     GetVideoMemoryUsageStatsCallback callback) {
+   if (io_runner_->BelongsToCurrentThread()) {
+diff --git a/components/viz/service/BUILD.gn b/components/viz/service/BUILD.gn
+index 380982d85b..b499126638 100644
+--- a/components/viz/service/BUILD.gn
++++ b/components/viz/service/BUILD.gn
+@@ -311,8 +311,6 @@ viz_component("service") {
+     "//services/metrics/public/mojom",
+     "//services/tracing/public/cpp",
+     "//services/viz/privileged/mojom",
+-    "//services/webnn:webnn_service",
+-    "//services/webnn/public/mojom",
+     "//skia",
+     "//skia:skcms",
+     "//third_party/blink/public/common",
+@@ -338,7 +336,7 @@ viz_component("service") {
+     "//services/viz/privileged/mojom/compositing",
+     "//services/viz/privileged/mojom/gl",
+     "//services/viz/public/mojom",
+-    "//services/webnn/public/mojom",
++    # 刀18: webnn mojom 出局 (gpu_service 集成已裁)
+     "//skia",
+     "//ui/base/prediction",
+     "//ui/gfx",
+diff --git a/components/viz/test/stub_gpu_service.h b/components/viz/test/stub_gpu_service.h
+index e879f21164..8efdf20cfc 100644
+--- a/components/viz/test/stub_gpu_service.h
++++ b/components/viz/test/stub_gpu_service.h
+@@ -63,14 +63,6 @@ class StubGpuService : public mojom::GpuService {
+   void CreateVideoEncodeAcceleratorProvider(
+       mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
+           receiver) override;
+-  void BindWebNNContextProvider(
+-      mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
+-      int32_t client_id,
+-      uint64_t client_tracing_id,
+-      bool is_incognito) override;
+-  void BindWebNNServiceIntrospection(
+-      mojo::PendingReceiver<webnn::mojom::WebNNServiceIntrospection> receiver)
+-      override;
+   void GetVideoMemoryUsageStats(
+       GetVideoMemoryUsageStatsCallback callback) override;
+ #if BUILDFLAG(IS_WIN)
+diff --git a/components/viz/test/stub_gpu_service.cc b/components/viz/test/stub_gpu_service.cc
+index b229f75e2b..287983aee9 100644
+--- a/components/viz/test/stub_gpu_service.cc
++++ b/components/viz/test/stub_gpu_service.cc
+@@ -64,14 +64,6 @@ void StubGpuService::CreateVideoEncodeAcceleratorProvider(
+     mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
+         receiver) {}
+ 
+-void StubGpuService::BindWebNNContextProvider(
+-    mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
+-    int32_t client_id,
+-    uint64_t client_tracing_id,
+-    bool is_incognito) {}
+-
+-void StubGpuService::BindWebNNServiceIntrospection(
+-    mojo::PendingReceiver<webnn::mojom::WebNNServiceIntrospection> receiver) {}
+ 
+ void StubGpuService::GetVideoMemoryUsageStats(
+     GetVideoMemoryUsageStatsCallback callback) {}
+diff --git a/media/BUILD.gn b/media/BUILD.gn
+index 5c60f7e080..43f14b0808 100644
+--- a/media/BUILD.gn
++++ b/media/BUILD.gn
+@@ -201,7 +201,7 @@ test("media_unittests") {
+     "//media/audio:unit_tests",
+     "//media/base:unit_tests",
+     "//media/capabilities:unit_tests",
+-    "//media/cdm:unit_tests",
++    # 刀18: cdm 测试捆出局 (sibling 解析会连带创建 cdm:cdm 触发 visibility 断言)
+     "//media/device_monitors:unit_tests",
+     "//media/filters:unit_tests",
+     "//media/formats:unit_tests",
+diff --git a/media/media_options.gni b/media/media_options.gni
+index 1da06a1f21..4c3b59eddf 100644
+--- a/media/media_options.gni
++++ b/media/media_options.gni
+@@ -405,7 +405,7 @@ media_subcomponent_deps = [
+   # TODO(crbug.com/41237623): These files should not be in //media/base.
+   "//media/base/android",
+   "//media/capabilities",
+-  "//media/cdm",
++  # 刀18: cdm 死边 (media 核心源码零引用)
+   "//media/device_monitors",
+   "//media/filters",
+   "//media/formats",
+@@ -423,7 +423,8 @@ if (media_use_ffmpeg) {
+   media_subcomponent_deps += [ "//media/ffmpeg" ]
+ }
+ 
+-if (enable_library_cdms || is_win) {
++# 刀18: cdm 全断 (DRM 非 UI 工具包需求) — type_conversion 不再 roll-up.
++if (false && (enable_library_cdms || is_win)) {
+   media_subcomponent_deps += [ "//media/cdm:cdm_type_conversion" ]
+ }
+ 
+diff --git a/media/base/BUILD.gn b/media/base/BUILD.gn
+index 3a1e7f595f..dab175a922 100644
+--- a/media/base/BUILD.gn
++++ b/media/base/BUILD.gn
+@@ -133,6 +133,8 @@ source_set("base") {
+     "cdm_initialized_promise.cc",
+     "cdm_initialized_promise.h",
+     "cdm_key_information.cc",
++    "../cdm/media_foundation_cdm_data.cc",
++    "../cdm/media_foundation_cdm_data.h",
+     "cdm_key_information.h",
+     "cdm_promise.cc",
+     "cdm_promise.h",
+@@ -207,14 +209,6 @@ source_set("base") {
+     "key_system_capability.h",
+     "key_system_info.cc",
+     "key_system_info.h",
+-    "key_system_names.cc",
+-    "key_system_names.h",
+-    "key_systems.cc",
+-    "key_systems.h",
+-    "key_systems_impl.cc",
+-    "key_systems_impl.h",
+-    "key_systems_support_registration.cc",
+-    "key_systems_support_registration.h",
+     "limiting_audio_queue.cc",
+     "limiting_audio_queue.h",
+     "limits.h",
+@@ -422,7 +416,7 @@ source_set("base") {
+     "//gpu/command_buffer/common",
+     "//gpu/config",
+     "//gpu/ipc/common",
+-    "//media/cdm:clear_key_cdm_common",
++    # 刀18: cdm/clear_key 面出局 (DRM 非 UI 工具包需求).
+     "//net",
+     "//skia",
+     "//third_party/libyuv",
+diff --git a/media/cdm/BUILD.gn b/media/cdm/BUILD.gn
+index 49c017bb16..5dd4b48e67 100644
+--- a/media/cdm/BUILD.gn
++++ b/media/cdm/BUILD.gn
+@@ -10,7 +10,7 @@ source_set("cdm_api") {
+ }
+ 
+ source_set("cdm_type_conversion") {
+-  if (enable_library_cdms || is_win) {
++  if (enable_library_cdms) {  # 刀18: is_win 条件摘除, cdm 面随 DRM 出局
+     # This target is a subcomponent.
+     visibility = [
+       ":*",
+@@ -79,7 +79,7 @@ source_set("cdm") {
+     "//url",
+   ]
+ 
+-  configs += [ "//media:subcomponent_config" ]
++  # 刀18: subcomponent_config 出局 (cdm 面随 DRM 裁)
+ 
+   if (enable_library_cdms) {
+     deps += [
+diff --git a/media/filters/BUILD.gn b/media/filters/BUILD.gn
+index 4a53e96173..4bcf606d4f 100644
+--- a/media/filters/BUILD.gn
++++ b/media/filters/BUILD.gn
+@@ -92,7 +92,7 @@ source_set("filters") {
+     "//cc/base",  # For MathUtil.
+     "//media:media_buildflags",
+     "//media/base",
+-    "//media/cdm",
++    # 刀18: cdm 死边摘除 (源码零 cdm:: 引用; DRM 非 UI 工具包需求)
+     "//media/formats",
+     "//media/parsers",
+     "//media/video",
+diff --git a/media/formats/BUILD.gn b/media/formats/BUILD.gn
+index a458066ab7..dc7a60517a 100644
+--- a/media/formats/BUILD.gn
++++ b/media/formats/BUILD.gn
+@@ -274,7 +274,7 @@ source_set("formats") {
+     "hls/variant_stream.h",
+   ]
+   deps += [
+-    "//crypto",
++    # 刀18: crypto 死边 (formats 源码零 crypto:: 引用)
+     "//third_party/re2",
+   ]
+   public_deps = [
+diff --git a/third_party/webrtc_overrides/BUILD.gn b/third_party/webrtc_overrides/BUILD.gn
+index 609af8f1e5..5ea3f61a54 100644
+--- a/third_party/webrtc_overrides/BUILD.gn
++++ b/third_party/webrtc_overrides/BUILD.gn
+@@ -63,8 +63,7 @@ webrtc_public_deps = [
+   "//third_party/webrtc/api/audio:aec3_factory",
+   "//third_party/webrtc/api/audio:audio_processing",
+   "//third_party/webrtc/api/audio:builtin_audio_processing_builder",
+-  "//third_party/webrtc/api/audio:neural_residual_echo_estimator_creator",
+-  "//third_party/webrtc/api/audio:tflite_model_handle",
++  # 刀18: 神经回声估计死边 (overrides 源码零引用, tflite/xnnpack 随之出局)
+   "//third_party/webrtc/api/audio_codecs:audio_codecs_api",
+   "//third_party/webrtc/api/audio_codecs/L16:audio_decoder_L16",
+   "//third_party/webrtc/api/audio_codecs/L16:audio_encoder_L16",
+diff --git a/third_party/blink/common/bluetooth/web_bluetooth_device_id.cc b/third_party/blink/common/bluetooth/web_bluetooth_device_id.cc
+index 5c51d02bf5..d10167a11b 100644
+--- a/third_party/blink/common/bluetooth/web_bluetooth_device_id.cc
++++ b/third_party/blink/common/bluetooth/web_bluetooth_device_id.cc
+@@ -9,7 +9,7 @@
+ 
+ #include "base/base64.h"
+ #include "base/strings/string_util.h"
+-#include "crypto/random.h"
++#include "base/rand_util.h"  // 刀18: crypto 出局, 随机源换 base
+ 
+ namespace blink {
+ 
+@@ -49,7 +49,7 @@ const WebBluetoothDeviceIdKey& WebBluetoothDeviceId::DeviceId() const {
+ WebBluetoothDeviceId WebBluetoothDeviceId::Create() {
+   WebBluetoothDeviceIdKey bytes;
+ 
+-  crypto::RandBytes(bytes);
++  base::RandBytes(bytes);  // 刀18
+ 
+   return WebBluetoothDeviceId(std::move(bytes));
+ }
+diff --git a/third_party/blink/common/BUILD.gn b/third_party/blink/common/BUILD.gn
+index 5308cb0c94..731ae50dde 100644
+--- a/third_party/blink/common/BUILD.gn
++++ b/third_party/blink/common/BUILD.gn
+@@ -12,7 +12,7 @@ source_set("common") {
+   public_configs = [ ":blink_common_implementation" ]
+   deps = [
+     "//base",
+-    "//crypto",
++    # 刀18: crypto 出局 (RandBytes 换 base)
+     "//third_party/blink/public/common:headers",
+   ]
+ }
+diff --git a/ui/resources/BUILD.gn b/ui/resources/BUILD.gn
+index cf44c24710..fa776e03f2 100644
+--- a/ui/resources/BUILD.gn
++++ b/ui/resources/BUILD.gn
+@@ -129,7 +129,6 @@ repack("repack_ui_test_pak_100_percent") {
+     "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
+     "$root_gen_dir/ui/strings/ax_strings_en-US.pak",
+     "$root_gen_dir/ui/strings/ui_strings_en-US.pak",
+-    "$root_gen_dir/ui/webui/resources/webui_resources.pak",
+   ]
+ 
+   output = "$root_out_dir/ui_test.pak"
+@@ -138,7 +137,6 @@ repack("repack_ui_test_pak_100_percent") {
+     "//mojo/public/js:resources",
+     "//ui/resources",
+     "//ui/strings",
+-    "//ui/webui/resources:resources_grit",
+   ]
+ 
+   if (!is_ios) {

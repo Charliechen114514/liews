@@ -1,0 +1,1076 @@
+diff --git a/components/viz/host/BUILD.gn b/components/viz/host/BUILD.gn
+index b7662fa565..1d09763a94 100644
+--- a/components/viz/host/BUILD.gn
++++ b/components/viz/host/BUILD.gn
+@@ -9,8 +9,6 @@ viz_component("host") {
+   defines = [ "VIZ_HOST_IMPLEMENTATION" ]
+ 
+   sources = [
+-    "client_frame_sink_video_capturer.cc",
+-    "client_frame_sink_video_capturer.h",
+     "compositing_mode_reporter_impl.cc",
+     "compositing_mode_reporter_impl.h",
+     "gpu_client.cc",
+@@ -44,7 +42,6 @@ viz_component("host") {
+     "//components/persistent_cache",
+     "//gpu/ipc/client",
+     "//gpu/ipc/common",
+-    "//gpu/webgpu:common",
+     "//services/viz/privileged/mojom",
+     "//ui/base",
+     "//ui/base:ozone_buildflags",
+@@ -69,30 +66,3 @@ viz_component("host") {
+   }
+ }
+ 
+-viz_source_set("unit_tests") {
+-  testonly = true
+-
+-  sources = [ "host_frame_sink_manager_unittest.cc" ]
+-
+-  if (enable_skia_graphite_tests) {
+-    sources += [ "persistent_cache_sandboxed_file_factory_unittest.cc" ]
+-  }
+-
+-  deps = [
+-    ":host",
+-    "//base",
+-    "//base/test:test_support",
+-    "//components/viz/test:test_support",
+-    "//gpu/ipc/host",
+-    "//media:media_buildflags",
+-    "//mojo/public/cpp/bindings",
+-    "//services/viz/privileged/mojom",
+-    "//services/viz/public/mojom",
+-    "//testing/gmock",
+-    "//testing/gtest",
+-  ]
+-
+-  if (use_ozone) {
+-    deps += [ "//ui/ozone" ]
+-  }
+-}
+diff --git a/components/viz/host/gpu_client.cc b/components/viz/host/gpu_client.cc
+index 2e73f04454..23a1b140db 100644
+--- a/components/viz/host/gpu_client.cc
++++ b/components/viz/host/gpu_client.cc
+@@ -122,42 +122,15 @@ void GpuClient::SetClientPid(base::ProcessId client_pid) {
+     gpu_host->SetChannelClientPid(client_id_, client_pid);
+ }
+ 
+-void GpuClient::SetDiskCacheHandle(const gpu::GpuDiskCacheHandle& handle) {
+-  if (!task_runner_->RunsTasksInCurrentSequence()) {
+-    task_runner_->PostTask(FROM_HERE,
+-                           base::BindOnce(&GpuClient::SetDiskCacheHandle,
+-                                          weak_factory_.GetWeakPtr(), handle));
+-    return;
+-  }
+ 
+-  if (GpuHostImpl* gpu_host = delegate_->EnsureGpuHost())
+-    gpu_host->SetChannelDiskCacheHandle(client_id_, handle);
+-}
+ 
+-void GpuClient::RemoveDiskCacheHandles() {
+-  if (!task_runner_->RunsTasksInCurrentSequence()) {
+-    task_runner_->PostTask(FROM_HERE,
+-                           base::BindOnce(&GpuClient::RemoveDiskCacheHandles,
+-                                          weak_factory_.GetWeakPtr()));
+-    return;
+-  }
+ 
+-  if (GpuHostImpl* gpu_host = delegate_->EnsureGpuHost())
+-    gpu_host->RemoveChannelDiskCacheHandles(client_id_);
+-}
+ 
+ base::WeakPtr<GpuClient> GpuClient::GetWeakPtr() {
+   return weak_factory_.GetWeakPtr();
+ }
+ 
+-void GpuClient::BindWebNNContextProvider(
+-    mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
+-    bool is_incognito) {
+-  if (auto* gpu_host = delegate_->EnsureGpuHost()) {
+-    gpu_host->gpu_service()->BindWebNNContextProvider(
+-        std::move(receiver), client_id_, client_tracing_id_, is_incognito);
+-  }
+-}
++
+ 
+ void GpuClient::OnEstablishGpuChannel(
+     EstablishChannelReason reason,
+@@ -322,13 +295,6 @@ void GpuClient::CreateJpegDecodeAccelerator(
+ }
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+-void GpuClient::CreateVideoEncodeAcceleratorProvider(
+-    mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
+-        vea_provider_receiver) {
+-  if (auto* gpu_host = delegate_->EnsureGpuHost()) {
+-    gpu_host->gpu_service()->CreateVideoEncodeAcceleratorProvider(
+-        std::move(vea_provider_receiver));
+-  }
+-}
++
+ 
+ }  // namespace viz
+diff --git a/components/viz/host/gpu_client.h b/components/viz/host/gpu_client.h
+index 4d963954f1..181384be4b 100644
+--- a/components/viz/host/gpu_client.h
++++ b/components/viz/host/gpu_client.h
+@@ -18,7 +18,6 @@
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+ #include "mojo/public/cpp/bindings/receiver_set.h"
+ #include "services/viz/public/mojom/gpu.mojom.h"
+-#include "services/webnn/public/mojom/webnn_context_provider.mojom.h"
+ 
+ namespace viz {
+ 
+@@ -54,13 +53,11 @@ class VIZ_HOST_EXPORT GpuClient : public mojom::Gpu {
+   void SetClientPid(base::ProcessId client_pid);
+ 
+   // Sets/removes disk cache handle(s) that can be used by this channel.
+-  void SetDiskCacheHandle(const gpu::GpuDiskCacheHandle& handle);
+-  void RemoveDiskCacheHandles();
++
++
+ 
+   base::WeakPtr<GpuClient> GetWeakPtr();
+-  void BindWebNNContextProvider(
+-      mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
+-      bool is_incognito);
++
+ 
+   void EstablishGpuChannel(EstablishGpuChannelCallback callback) override;
+ 
+@@ -72,9 +69,7 @@ class VIZ_HOST_EXPORT GpuClient : public mojom::Gpu {
+       mojo::PendingReceiver<chromeos_camera::mojom::MjpegDecodeAccelerator>
+           jda_receiver) override;
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+-  void CreateVideoEncodeAcceleratorProvider(
+-      mojo::PendingReceiver<media::mojom::VideoEncodeAcceleratorProvider>
+-          vea_provider_receiver) override;
++
+ 
+  private:
+   enum class ErrorReason {
+diff --git a/components/viz/host/gpu_host_impl.cc b/components/viz/host/gpu_host_impl.cc
+index da5b044bcc..2c156177d6 100644
+--- a/components/viz/host/gpu_host_impl.cc
++++ b/components/viz/host/gpu_host_impl.cc
+@@ -20,16 +20,12 @@
+ #include "build/build_config.h"
+ #include "components/viz/common/buildflags.h"
+ #include "components/viz/common/features.h"
+-#include "components/viz/host/persistent_cache_sandboxed_file_factory.h"
+ #include "gpu/config/gpu_driver_bug_workaround_type.h"
+ #include "gpu/config/gpu_feature_info.h"
+ #include "gpu/config/gpu_finch_features.h"
+ #include "gpu/config/gpu_info.h"
+ #include "gpu/ipc/common/gpu_client_ids.h"
+-#include "gpu/ipc/host/gpu_disk_cache.h"
+-#include "gpu/webgpu/dawn_commit_hash.h"
+ #include "mojo/public/cpp/bindings/sync_call_restrictions.h"
+-#include "services/webnn/host/weights_file_provider.h"
+ #include "skia/buildflags.h"
+ #include "skia/ext/skia_commit_hash.h"
+ #include "ui/gfx/font_render_params.h"
+@@ -39,9 +35,6 @@
+ #endif
+ 
+ #if BUILDFLAG(IS_WIN)
+-#include "services/webnn/host/execution_provider_initializer.h"
+-#include "services/webnn/public/cpp/context_properties.h"
+-#include "services/webnn/public/cpp/ep_device_info.h"
+ #include "ui/gfx/win/rendering_window_manager.h"
+ #elif BUILDFLAG(IS_MAC)
+ #include "ui/accelerated_widget_mac/window_resize_helper_mac.h"
+@@ -116,20 +109,7 @@ std::string GraphiteDawnCacheVersion() {
+ }
+ #endif
+ 
+-bool CanUseShaderCache(const gpu::GpuDiskCacheHandle& handle,
+-                       const std::optional<bool>& gpu_uses_graphite) {
+-  if (handle == gpu::GpuDiskCacheHandle(gpu::kGraphiteDawnGpuDiskCacheHandle) &&
+-      !gpu_uses_graphite.value()) {
+-    // GraphiteDawn cache is not used when Skia Graphite is disabled.
+-    return false;
+-  }
+-  if (handle == gpu::GpuDiskCacheHandle(gpu::kGrShaderGpuDiskCacheHandle) &&
+-      gpu_uses_graphite.value()) {
+-    // GrShader cache is not used when Skia Graphite is enabled.
+-    return false;
+-  }
+-  return true;
+-}
++
+ 
+ }  // namespace
+ 
+@@ -203,11 +183,7 @@ GpuHostImpl::GpuHostImpl(Delegate* delegate,
+       use_shader_cache_shm_count_.CloneRegion(), std::move(gpu_service_params));
+   MaybeSendFontRenderParams();
+ 
+-  // The persistent cache is not used by the GPU process for info collection.
+-  // Avoid loading the cache files multiple times.
+-  if (!params_.info_collection_gpu_process) {
+-    InitPersistentCache();
+-  }
++  // (刀12: InitPersistentCache 已出局。)
+ 
+ #if BUILDFLAG(IS_OZONE)
+   InitOzone();
+@@ -215,7 +191,7 @@ GpuHostImpl::GpuHostImpl(Delegate* delegate,
+ }
+ 
+ GpuHostImpl::~GpuHostImpl() {
+-  ClearPersistentCaches(false);
++  // (刀12: ClearPersistentCaches 已出局。)
+   GetFontRenderParams().SetGpuHostImpl(nullptr);
+   SendOutstandingReplies();
+ }
+@@ -245,21 +221,7 @@ void GpuHostImpl::OnProcessCrashed() {
+   // If the GPU process crashed while compiling a shader, we may have invalid
+   // cached binaries. Completely clear the shader cache to force shader binaries
+   // to be re-created.
+-  if (use_shader_cache_shm_count_.GetCount() > 0) {
+-    // Clear persistent cache files
+-    send_persistent_cache_files_to_service_ = false;
+-    ClearPersistentCaches(true);
+-
+-    auto* gpu_disk_cache_factory = delegate_->GetGpuDiskCacheFactory();
+-    for (auto& [_, cache] : client_id_to_caches_) {
+-      // This call will temporarily extend the lifetime of the cache (kept
+-      // alive in the factory), and may drop loads of cached shader binaries if
+-      // it takes a while to complete. As we are intentionally dropping all
+-      // binaries, this behavior is fine.
+-      gpu_disk_cache_factory->ClearByCache(
+-          cache, base::Time(), base::Time::Max(), base::DoNothing());
+-    }
+-  }
++  // (刀12: shader 缓存清理段已出局。)
+ }
+ 
+ void GpuHostImpl::AddConnectionErrorHandler(base::OnceClosure handler) {
+@@ -341,12 +303,7 @@ void GpuHostImpl::EstablishGpuChannel(int client_id,
+                        weak_ptr_factory_.GetWeakPtr(), client_id, false));
+   }
+ 
+-  // The gpu host channel uses the same cache as the compositor client.
+-  if (is_gpu_host &&
+-      !base::FeatureList::IsEnabled(features::kGpuPersistentCache)) {
+-    SetChannelDiskCacheHandle(client_id,
+-                              gpu::kDisplayCompositorGpuDiskCacheHandle);
+-  }
++  // (刀12: SetChannelDiskCacheHandle 调用已出局。)
+ }
+ 
+ void GpuHostImpl::SetChannelClientPid(int client_id,
+@@ -354,45 +311,6 @@ void GpuHostImpl::SetChannelClientPid(int client_id,
+   gpu_service_remote_->SetChannelClientPid(client_id, client_pid);
+ }
+ 
+-void GpuHostImpl::SetChannelDiskCacheHandle(
+-    int client_id,
+-    const gpu::GpuDiskCacheHandle& handle) {
+-  if (params_.disable_gpu_shader_disk_cache) {
+-    return;
+-  }
+-
+-  if (!CanUseShaderCache(handle, gpu_uses_graphite_)) {
+-    return;
+-  }
+-
+-  scoped_refptr<gpu::GpuDiskCache> cache =
+-      delegate_->GetGpuDiskCacheFactory()->Get(handle);
+-  if (!cache) {
+-    // Create the cache if necessary and save a reference.
+-    cache = delegate_->GetGpuDiskCacheFactory()->Create(
+-        handle,
+-        base::BindRepeating(&GpuHostImpl::LoadedBlob,
+-                            weak_ptr_factory_.GetWeakPtr()),
+-        base::BindOnce(&GpuHostImpl::OnDiskCacheHandleDestoyed,
+-                       weak_ptr_factory_.GetWeakPtr()));
+-    if (!cache) {
+-      return;
+-    }
+-  }
+-
+-  client_id_to_caches_.emplace(client_id, cache);
+-  gpu_service_remote_->SetChannelDiskCacheHandle(client_id, handle);
+-}
+-
+-void GpuHostImpl::RemoveChannelDiskCacheHandles(int client_id) {
+-  // Release the handle, then release the cache.
+-  auto [start, end] = client_id_to_caches_.equal_range(client_id);
+-  for (auto it = start; it != end; ++it) {
+-    delegate_->GetGpuDiskCacheFactory()->ReleaseCacheHandle(it->second.get());
+-  }
+-  client_id_to_caches_.erase(client_id);
+-}
+-
+ void GpuHostImpl::CloseChannel(int client_id) {
+   gpu_service_remote_->CloseChannel(client_id);
+ 
+@@ -410,23 +328,6 @@ void GpuHostImpl::CancelEstablishGpuChannel(int client_id) {
+   cancelled_channel_requests_[client_id]++;
+ }
+ 
+-#if BUILDFLAG(USE_VIZ_DEBUGGER)
+-void GpuHostImpl::FilterVisualDebugStream(base::DictValue json) {
+-  viz_main_->FilterDebugStream(std::move(json));
+-}
+-
+-void GpuHostImpl::StartVisualDebugStream(
+-    base::RepeatingCallback<void(base::Value)> callback) {
+-  viz_debug_output_callback_ = std::move(callback);
+-  viz_main_->StartDebugStream(viz_debug_output_.BindNewPipeAndPassRemote());
+-}
+-
+-void GpuHostImpl::StopVisualDebugStream() {
+-  viz_main_->StopDebugStream();
+-  viz_debug_output_.reset();
+-}
+-#endif
+-
+ void GpuHostImpl::SendOutstandingReplies() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+ 
+@@ -490,64 +391,6 @@ void GpuHostImpl::TerminateGpuProcess(const std::string& message) {
+ 
+ #endif  // BUILDFLAG(IS_OZONE)
+ 
+-void GpuHostImpl::InitPersistentCache() {
+-    auto* persistent_cache_file_factory =
+-        PersistentCacheSandboxedFileFactory::GetInstance();
+-    if (!persistent_cache_file_factory) {
+-      // This can happen in tests when the cache directory is not defined.
+-      return;
+-    }
+-
+-    auto load_persistent_cache = [&](gpu::GpuDiskCacheHandle handle,
+-                                     std::string cache_version) {
+-      persistent_cache_file_factory->CreateFilesAsync(
+-          GetGpuDiskCacheSubdir(gpu::GetHandleType(handle)), cache_version,
+-          base::BindOnce(
+-              [](base::WeakPtr<GpuHostImpl> gpu_host,
+-                 gpu::GpuDiskCacheHandle handle,
+-                 std::optional<persistent_cache::PendingBackend>
+-                     pending_backend) {
+-                if (!gpu_host || !pending_backend) {
+-                  return;
+-                }
+-
+-                gpu_host->OnPersistentCacheFilesCreated(
+-                    handle, std::move(*pending_backend));
+-              },
+-              weak_ptr_factory_.GetWeakPtr(), handle),
+-          /*extra_opts=*/
+-          {.retries = 30, .retry_delay = base::Milliseconds(100)});
+-    };
+-
+-    if (base::FeatureList::IsEnabled(features::kGpuPersistentCache)) {
+-      // The compositor and Skia cache both use GrShaderGpuDiskCache with the
+-      // persistent cache.
+-      load_persistent_cache(gpu::kGrShaderGpuDiskCacheHandle, params_.product);
+-    }
+-#if BUILDFLAG(SKIA_USE_DAWN)
+-    if (features::SkiaGraphiteUsesPersistentCache()) {
+-      load_persistent_cache(gpu::kGraphiteDawnGpuDiskCacheHandle,
+-                            GraphiteDawnCacheVersion());
+-    }
+-#endif  // BUILDFLAG(SKIA_USE_DAWN)
+-}
+-
+-void GpuHostImpl::SetChannelPersistentCachePendingBackend(
+-    int client_id,
+-    const gpu::GpuDiskCacheHandle& handle,
+-    persistent_cache::PendingBackend pending_backend) {
+-  TRACE_EVENT2("gpu", "GpuHostImpl::SetChannelPersistentCachePendingBackend",
+-               "client_id", client_id, "handle_type", GetHandleType(handle));
+-  if (!CanUseShaderCache(handle, gpu_uses_graphite_)) {
+-    if (auto* factory = PersistentCacheSandboxedFileFactory::GetInstance()) {
+-      factory->DeletePendingBackendAsync(std::move(pending_backend));
+-    }
+-    return;
+-  }
+-  gpu_service()->SetChannelPersistentCachePendingBackend(
+-      client_id, handle, std::move(pending_backend));
+-}
+-
+ std::string GpuHostImpl::GetShaderPrefixKey() {
+   if (shader_prefix_key_.empty()) {
+     const gpu::GPUInfo& info = delegate_->GetGPUInfo();
+@@ -567,22 +410,6 @@ std::string GpuHostImpl::GetShaderPrefixKey() {
+   return shader_prefix_key_;
+ }
+ 
+-void GpuHostImpl::LoadedBlob(const gpu::GpuDiskCacheHandle& handle,
+-                             const std::string& key,
+-                             const std::string& data) {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-
+-  TRACE_EVENT1("gpu", "GpuHostImpl::LoadedBlob", "handle_type",
+-               GetHandleType(handle));
+-  gpu_service_remote_->LoadedBlob(handle, key, data);
+-}
+-
+-void GpuHostImpl::OnDiskCacheHandleDestoyed(
+-    const gpu::GpuDiskCacheHandle& handle) {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-  gpu_service_remote_->OnDiskCacheHandleDestoyed(handle);
+-}
+-
+ void GpuHostImpl::OnChannelEstablished(
+     int client_id,
+     bool sync,
+@@ -655,33 +482,7 @@ void GpuHostImpl::DidInitialize(
+       gpu_feature_info.status_values[gpu::GPU_FEATURE_TYPE_SKIA_GRAPHITE] ==
+       gpu::kGpuFeatureStatusEnabled;
+ 
+-  if (!params_.disable_gpu_shader_disk_cache) {
+-    // Signal that any delayed loads of the persistent cache files should be
+-    // immediately forwarded to the GPU process.
+-    send_persistent_cache_files_to_service_ = true;
+-
+-    // Forward existing persistent cache files now. They would only have been
+-    // loaded if the experiment is active.
+-    for (auto& persistent_cache_files : persistent_cache_files_) {
+-      const gpu::GpuDiskCacheHandle& handle = persistent_cache_files.first;
+-      persistent_cache::PendingBackend files =
+-          std::move(persistent_cache_files.second);
+-      SetChannelPersistentCachePendingBackend(gpu::GetHandleValue(handle),
+-                                              handle, std::move(files));
+-    }
+-    persistent_cache_files_.clear();
+-
+-    if (!base::FeatureList::IsEnabled(features::kGpuPersistentCache)) {
+-      SetChannelDiskCacheHandle(gpu::kDisplayCompositorClientId,
+-                                gpu::kDisplayCompositorGpuDiskCacheHandle);
+-      SetChannelDiskCacheHandle(gpu::kGrShaderCacheClientId,
+-                                gpu::kGrShaderGpuDiskCacheHandle);
+-    }
+-    if (!features::SkiaGraphiteUsesPersistentCache()) {
+-      SetChannelDiskCacheHandle(gpu::kGraphiteDawnClientId,
+-                                gpu::kGraphiteDawnGpuDiskCacheHandle);
+-    }
+-  }
++  // (刀12: persistent cache 前转段已出局。)
+ }
+ 
+ void GpuHostImpl::DidFailInitialize() {
+@@ -706,7 +507,7 @@ void GpuHostImpl::DidDestroyOffscreenContext(const GURL& url) {
+ 
+ void GpuHostImpl::DidDestroyChannel(int32_t client_id) {
+   TRACE_EVENT0("gpu", "GpuHostImpl::DidDestroyChannel");
+-  client_id_to_caches_.erase(client_id);
++  // (刀12: client_id_to_caches_ 已出局。)
+ }
+ 
+ void GpuHostImpl::DidDestroyAllChannels() {
+@@ -762,14 +563,6 @@ void GpuHostImpl::DisableGpuCompositing() {
+   delegate_->DisableGpuCompositing();
+ }
+ 
+-void GpuHostImpl::GetIsolationKey(
+-    int32_t client_id,
+-    const blink::WebGPUExecutionContextToken& token,
+-    GetIsolationKeyCallback cb) {
+-  std::string isolation_key = delegate_->GetIsolationKey(client_id, token);
+-  std::move(cb).Run(isolation_key);
+-}
+-
+ void GpuHostImpl::DidUpdateGPUInfo(const gpu::GPUInfo& gpu_info) {
+   delegate_->DidUpdateGPUInfo(gpu_info);
+ #if BUILDFLAG(IS_OZONE)
+@@ -810,68 +603,7 @@ gpu::GpuProcessHostShmCount* GpuHostImpl::GetShaderCacheShmCountForTesting() {
+   return &use_shader_cache_shm_count_;
+ }
+ 
+-void GpuHostImpl::StoreBlobToDisk(const gpu::GpuDiskCacheHandle& handle,
+-                                  const std::string& key,
+-                                  const std::string& blob) {
+-  scoped_refptr<gpu::GpuDiskCache> cache =
+-      delegate_->GetGpuDiskCacheFactory()->Get(handle);
+-  if (!cache) {
+-    return;
+-  }
+-
+-  TRACE_EVENT1("gpu", "GpuHostImpl::StoreBlobToDisk", "handle_type",
+-               GetHandleType(handle));
+-  cache->Cache(key, blob);
+-}
+-
+-void GpuHostImpl::ClearGrShaderDiskCache() {
+-  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+-
+-  auto* gpu_disk_cache_factory = delegate_->GetGpuDiskCacheFactory();
+-  for (auto& [client_id, cache] : client_id_to_caches_) {
+-    // This call will temporarily extend the lifetime of the cache (kept
+-    // alive in the factory), and may drop loads of cached shader binaries if
+-    // it takes a while to complete. As we are intentionally dropping all
+-    // binaries, this behavior is fine.
+-    if (client_id == gpu::kGrShaderCacheClientId) {
+-      gpu_disk_cache_factory->ClearByCache(
+-          cache, base::Time(), base::Time::Max(), base::DoNothing());
+-    }
+-  }
+-}
+-
+-#if BUILDFLAG(IS_WIN)
+-void GpuHostImpl::EnsureWebNNExecutionProvidersReady(
+-    EnsureWebNNExecutionProvidersReadyCallback cb) {
+-  webnn::EnsureExecutionProvidersReady(std::move(cb));
+-}
+-
+-void GpuHostImpl::Delegate::RequestWebNNCompilerContext(
+-    webnn::mojom::CreateContextOptionsPtr context_options,
+-    const webnn::ContextProperties& context_properties,
+-    const webnn::EpDeviceInfo& target_device,
+-    mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-        compiler_context_receiver,
+-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
+-  // Default: drop the endpoints (pipe disconnects).
+-}
+-
+-void GpuHostImpl::RequestWebNNCompilerContext(
+-    webnn::mojom::CreateContextOptionsPtr context_options,
+-    const webnn::ContextProperties& context_properties,
+-    const webnn::EpDeviceInfo& target_device,
+-    mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-        compiler_context_receiver,
+-    mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote) {
+-  delegate_->RequestWebNNCompilerContext(
+-      std::move(context_options), context_properties, target_device,
+-      std::move(compiler_context_receiver), std::move(model_loader_remote));
+-}
+-#endif  // BUILDFLAG(IS_WIN)
+-
+-void GpuHostImpl::CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback cb) {
+-  webnn::CreateWeightsFile(std::move(cb));
+-}
++// (刀10.6: Delegate::RequestWebNNCompilerContext 默认实现已出局。)
+ 
+ void GpuHostImpl::RecordLogMessage(int32_t severity,
+                                    const std::string& header,
+@@ -879,61 +611,4 @@ void GpuHostImpl::RecordLogMessage(int32_t severity,
+   delegate_->RecordLogMessage(severity, header, message);
+ }
+ 
+-#if BUILDFLAG(USE_VIZ_DEBUGGER)
+-void GpuHostImpl::LogFrame(base::Value frame_data) {
+-  if (!viz_debug_output_callback_.is_null())
+-    viz_debug_output_callback_.Run(std::move(frame_data));
+-}
+-#endif
+-
+-void GpuHostImpl::ClearPersistentCaches(bool delete_cache_files) {
+-  auto* persistent_cache_file_factory =
+-      PersistentCacheSandboxedFileFactory::GetInstance();
+-  if (!persistent_cache_file_factory) {
+-    return;
+-  }
+-
+-  auto clear_persistent_cache = [&](const gpu::GpuDiskCacheHandle& handle,
+-                                    const std::string& cache_version) {
+-    // If a pending backend was created but not sent to the service yet, tell
+-    // the factory to asynchronously delete it since it is a potentially
+-    // blocking call.
+-    if (auto iter = persistent_cache_files_.find(handle);
+-        iter != persistent_cache_files_.end()) {
+-      persistent_cache_file_factory->DeletePendingBackendAsync(
+-          std::move(iter->second));
+-      persistent_cache_files_.erase(iter);
+-    }
+-
+-    // if `delete_cache_files` is set, delete all cache data.
+-    if (delete_cache_files) {
+-      persistent_cache_file_factory->ClearFilesAsync(
+-          GetGpuDiskCacheSubdir(gpu::GetHandleType(handle)), cache_version,
+-          base::DoNothing());
+-    }
+-  };
+-
+-  clear_persistent_cache(gpu::kGrShaderGpuDiskCacheHandle, params_.product);
+-#if BUILDFLAG(SKIA_USE_DAWN)
+-  clear_persistent_cache(gpu::kGraphiteDawnGpuDiskCacheHandle,
+-                         GraphiteDawnCacheVersion());
+-#endif
+-
+-  DCHECK(persistent_cache_files_.empty());
+-}
+-
+-void GpuHostImpl::OnPersistentCacheFilesCreated(
+-    gpu::GpuDiskCacheHandle handle,
+-    persistent_cache::PendingBackend pending_backend) {
+-  TRACE_EVENT0("gpu", "GpuHostImpl::OnPersistentCacheFilesCreated");
+-
+-  if (send_persistent_cache_files_to_service_) {
+-    // If the service is already initialized, we send the files  immediately.
+-    SetChannelPersistentCachePendingBackend(gpu::GetHandleValue(handle), handle,
+-                                            std::move(pending_backend));
+-  } else {
+-    persistent_cache_files_[handle] = std::move(pending_backend);
+-  }
+-}
+-
+ }  // namespace viz
+diff --git a/components/viz/host/gpu_host_impl.h b/components/viz/host/gpu_host_impl.h
+index f42a4f93c7..aac0c1a2b7 100644
+--- a/components/viz/host/gpu_host_impl.h
++++ b/components/viz/host/gpu_host_impl.h
+@@ -23,14 +23,11 @@
+ #include "base/values.h"
+ #include "build/build_config.h"
+ #include "components/discardable_memory/public/mojom/discardable_shared_memory_manager.mojom.h"
+-#include "components/persistent_cache/pending_backend.h"
+ #include "components/viz/common/buildflags.h"
+ #include "components/viz/host/viz_host_export.h"
+-#include "components/viz/service/debugger/mojom/viz_debugger.mojom.h"
+ #include "gpu/command_buffer/common/shared_image_capabilities.h"
+ #include "gpu/command_buffer/common/shm_count.h"
+ #include "gpu/config/gpu_domain_guilt.h"
+-#include "gpu/ipc/common/gpu_disk_cache_type.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+ #include "mojo/public/cpp/bindings/receiver.h"
+@@ -47,8 +44,6 @@
+ 
+ #if BUILDFLAG(IS_WIN)
+ #include "services/viz/privileged/mojom/gl/info_collection_gpu_service.mojom.h"
+-#include "services/webnn/public/mojom/ep_package_info.mojom.h"
+-#include "services/webnn/public/mojom/webnn_context_provider.mojom.h"
+ #include "ui/gfx/mojom/dxgi_info.mojom.h"
+ #endif
+ 
+@@ -57,26 +52,14 @@ struct FontRenderParams;
+ }
+ 
+ namespace gpu {
+-class GpuDiskCacheFactory;
+-class GpuDiskCache;
+ }  // namespace gpu
+ 
+-#if BUILDFLAG(IS_WIN)
+-namespace webnn {
+-struct ContextProperties;
+-struct EpDeviceInfo;
+-}  // namespace webnn
+-#endif
+ 
+ namespace viz {
+ 
+ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+-                                    public mojom::GpuLogging
+-#if BUILDFLAG(USE_VIZ_DEBUGGER)
+-    ,
+-                                    public mojom::VizDebugOutput
+-#endif
+-{
++                                    public mojom::GpuLogging {
++  // (刀10.6: USE_VIZ_DEBUGGER 基类面已出局。)
+  public:
+   class VIZ_HOST_EXPORT Delegate {
+    public:
+@@ -99,12 +82,10 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+ #endif
+     virtual void BlockDomainsFrom3DAPIs(const std::set<GURL>& urls,
+                                         gpu::DomainGuilt guilt) = 0;
+-    virtual std::string GetIsolationKey(
+-        int32_t client_id,
+-        const blink::WebGPUExecutionContextToken& token) = 0;
++    // (刀11.5: GetIsolationKey (webgpu 面) 已出局。)
+     virtual void DisableGpuCompositing() = 0;
+     virtual bool GpuAccessAllowed() const = 0;
+-    virtual gpu::GpuDiskCacheFactory* GetGpuDiskCacheFactory() = 0;
++    // (刀12: GpuDiskCacheFactory 已出局。)
+     virtual void RecordLogMessage(int32_t severity,
+                                   const std::string& header,
+                                   const std::string& message) = 0;
+@@ -118,18 +99,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+ #if BUILDFLAG(IS_OZONE)
+     virtual void TerminateGpuProcess(const std::string& message) = 0;
+ #endif
+-#if BUILDFLAG(IS_WIN)
+-    // Requests the Browser to create a CompilerContext in the Compiler
+-    // process, launching it first if needed.
+-    virtual void RequestWebNNCompilerContext(
+-        webnn::mojom::CreateContextOptionsPtr context_options,
+-        const webnn::ContextProperties& context_properties,
+-        const webnn::EpDeviceInfo& target_device,
+-        mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-            compiler_context_receiver,
+-        mojo::PendingRemote<webnn::mojom::WebNNModelLoader>
+-            model_loader_remote);
+-#endif
++    // (刀10.6: RequestWebNNCompilerContext (webnn 面) 已出局。)
+ 
+    protected:
+     virtual ~Delegate() = default;
+@@ -217,9 +187,8 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+                            mojo::ScopedMessagePipeHandle handle,
+                            EstablishChannelCallback callback);
+   void SetChannelClientPid(int client_id, base::ProcessId client_pid);
+-  void SetChannelDiskCacheHandle(int client_id,
+-                                 const gpu::GpuDiskCacheHandle& handle);
+-  void RemoveChannelDiskCacheHandles(int client_id);
++
++
+   void CloseChannel(int client_id);
+   void CancelEstablishGpuChannel(int client_id);
+ 
+@@ -260,18 +229,13 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+   void TerminateGpuProcess(const std::string& message);
+ #endif  // BUILDFLAG(IS_OZONE)
+ 
+-  void InitPersistentCache();
+-  void SetChannelPersistentCachePendingBackend(
+-      int client_id,
+-      const gpu::GpuDiskCacheHandle& handle,
+-      persistent_cache::PendingBackend pending_backend);
++
++
+ 
+   std::string GetShaderPrefixKey();
+ 
+-  void LoadedBlob(const gpu::GpuDiskCacheHandle& handle,
+-                  const std::string& key,
+-                  const std::string& data);
+-  void OnDiskCacheHandleDestoyed(const gpu::GpuDiskCacheHandle& handle);
++  
++  
+ 
+   void OnChannelEstablished(
+       int client_id,
+@@ -304,41 +268,20 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+   void DidUpdateOverlayInfo(const gpu::OverlayInfo& overlay_info) override;
+   void DidUpdateDXGIInfo(gfx::mojom::DXGIInfoPtr dxgi_info) override;
+ #endif
+-  void GetIsolationKey(int32_t client_id,
+-                       const blink::WebGPUExecutionContextToken& token,
+-                       GetIsolationKeyCallback cb) override;
+-  void StoreBlobToDisk(const gpu::GpuDiskCacheHandle& handle,
+-                       const std::string& key,
+-                       const std::string& blob) override;
+-  void ClearGrShaderDiskCache() override;
+-#if BUILDFLAG(IS_WIN)
+-  void EnsureWebNNExecutionProvidersReady(
+-      EnsureWebNNExecutionProvidersReadyCallback cb) override;
+-  void RequestWebNNCompilerContext(
+-      webnn::mojom::CreateContextOptionsPtr context_options,
+-      const webnn::ContextProperties& context_properties,
+-      const webnn::EpDeviceInfo& target_device,
+-      mojo::PendingReceiver<webnn::mojom::WebNNCompilerContext>
+-          compiler_context_receiver,
+-      mojo::PendingRemote<webnn::mojom::WebNNModelLoader> model_loader_remote)
+-      override;
+-#endif
+-  void CreateWebNNWeightsFile(CreateWebNNWeightsFileCallback cb) override;
++  
++  
++
++  // (刀10.6: webnn 面 override 方法组已出局。)
+ 
+   // mojom::GpuLogging:
+   void RecordLogMessage(int32_t severity,
+                         const std::string& header,
+                         const std::string& message) override;
+ 
+-  // Implements mojom::VizDebugOutput and is called by VizDebugger.
+-#if BUILDFLAG(USE_VIZ_DEBUGGER)
+-  void LogFrame(base::Value frame_data) override;
+-#endif
++  // (刀10.6: VizDebugOutput 面已出局。)
++
++
+ 
+-  void ClearPersistentCaches(bool delete_cache_files);
+-  void OnPersistentCacheFilesCreated(
+-      gpu::GpuDiskCacheHandle handle,
+-      persistent_cache::PendingBackend pending_backend);
+ 
+   // Can be modified in tests by GpuHostImplTestApi.
+   raw_ptr<Delegate> delegate_;
+@@ -357,8 +300,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+   gpu::GpuProcessHostShmCount use_shader_cache_shm_count_;
+ 
+ #if BUILDFLAG(USE_VIZ_DEBUGGER)
+-  mojo::Receiver<mojom::VizDebugOutput> viz_debug_output_{this};
+-  base::RepeatingCallback<void(base::Value)> viz_debug_output_callback_;
++  // (刀10.6: VizDebugOutput 面已出局。)
+ #endif
+ 
+   base::ProcessId pid_ = base::kNullProcessId;
+@@ -372,7 +314,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+   // are guilty, and block automatic execution of 3D content from those domains.
+   std::multiset<GURL> urls_with_live_offscreen_contexts_;
+ 
+-  std::multimap<int32_t, scoped_refptr<gpu::GpuDiskCache>> client_id_to_caches_;
++
+   std::string shader_prefix_key_;
+ 
+   // These are the channel requests that we have already sent to the GPU
+@@ -388,8 +330,7 @@ class VIZ_HOST_EXPORT GpuHostImpl : public mojom::GpuHost,
+ 
+   // Opened persistent cache files which have not been forwarded to the GPU
+   // process yet.
+-  std::map<gpu::GpuDiskCacheHandle, persistent_cache::PendingBackend>
+-      persistent_cache_files_;
++
+ 
+   // Signal that the GPU process is ready to accept persistent cache files. They
+   // should be forwarded as soon as they are loaded.
+diff --git a/gpu/command_buffer/client/BUILD.gn b/gpu/command_buffer/client/BUILD.gn
+index abb4931de2..a25fdd28d0 100644
+--- a/gpu/command_buffer/client/BUILD.gn
++++ b/gpu/command_buffer/client/BUILD.gn
+@@ -39,13 +39,6 @@ group("raster") {
+   }
+ }
+ 
+-group("webgpu") {
+-  if (is_component_build) {
+-    public_deps = [ "//gpu:webgpu" ]
+-  } else {
+-    public_deps = [ ":webgpu_sources" ]
+-  }
+-}
+ 
+ source_set("export") {
+   sources = [ "gpu_command_buffer_client_export.h" ]
+@@ -90,7 +83,6 @@ source_set("client_sources") {
+   deps = [
+     ":export",
+     ":gles2_interface",
+-    ":webgpu_interface",
+     "//gpu/command_buffer/client/internal",
+     "//gpu/command_buffer/common",
+     "//gpu/ipc/common",
+@@ -213,19 +205,8 @@ source_set("raster_interface") {
+   ]
+ }
+ 
+-source_set("webgpu_interface") {
+-  sources = [
+-    "webgpu_interface.h",
+-    "webgpu_interface_autogen.h",
+-  ]
+-  public_configs = [ "//third_party/khronos:khronos_headers" ]
+-  deps = [
+-    ":interface_base",
+-    "//base",
+-    "//gpu/command_buffer/common:webgpu",
+-    "//third_party/blink/public/common/tokens:tokens_headers",
+-  ]
+-}
++# 刀10 (2026-09-14): source_set("webgpu_interface") 出局——全树零消费者,
++# 且其 deps 指向已删除的 //third_party/blink/public tokens。
+ 
+ # Library emulates GLES2 using command_buffers.
+ component("gles2_implementation") {
+@@ -288,38 +269,6 @@ source_set("raster_sources") {
+   ]
+ }
+ 
+-source_set("webgpu_sources") {
+-  visibility = [ "//gpu/*" ]
+-
+-  configs += [ "//gpu:webgpu_implementation" ]
+-  deps = [
+-    ":client",
+-    ":gles2_implementation",
+-    ":webgpu_interface",
+-    "//gpu/command_buffer/common:webgpu",
+-  ]
+-  public_deps = [ "//third_party/dawn/include/dawn:headers" ]
+-  sources = [
+-    "webgpu_cmd_helper.cc",
+-    "webgpu_cmd_helper.h",
+-    "webgpu_cmd_helper_autogen.h",
+-    "webgpu_export.h",
+-    "webgpu_implementation.cc",
+-    "webgpu_implementation.h",
+-    "webgpu_implementation_autogen.h",
+-    "webgpu_implementation_impl_autogen.h",
+-  ]
+-  if (use_dawn) {
+-    sources += [
+-      "dawn_client_memory_transfer_service.cc",
+-      "dawn_client_memory_transfer_service.h",
+-      "dawn_client_serializer.cc",
+-      "dawn_client_serializer.h",
+-      "dawn_wire_client.cc",
+-      "dawn_wire_client.h",
+-    ]
+-  }
+-}
+ 
+ # Library emulates GLES2 using command_buffers.
+ component("gles2_implementation_no_check") {
+diff --git a/gpu/command_buffer/client/client_shared_image.cc b/gpu/command_buffer/client/client_shared_image.cc
+index 812b23885b..26edc2cc93 100644
+--- a/gpu/command_buffer/client/client_shared_image.cc
++++ b/gpu/command_buffer/client/client_shared_image.cc
+@@ -27,7 +27,6 @@
+ #include "gpu/command_buffer/client/internal/mappable_buffer.h"
+ #include "gpu/command_buffer/client/internal/mappable_buffer_shared_memory.h"
+ #include "gpu/command_buffer/client/shared_image_interface.h"
+-#include "gpu/command_buffer/client/webgpu_interface.h"
+ #include "gpu/command_buffer/common/mailbox.h"
+ #include "gpu/command_buffer/common/shared_image_capabilities.h"
+ #include "gpu/command_buffer/common/shared_image_usage.h"
+diff --git a/gpu/ipc/host/BUILD.gn b/gpu/ipc/host/BUILD.gn
+index a4b5fa54d9..feaa7e56a2 100644
+--- a/gpu/ipc/host/BUILD.gn
++++ b/gpu/ipc/host/BUILD.gn
+@@ -6,8 +6,6 @@ import("//build/config/ui.gni")
+ 
+ source_set("host") {
+   sources = [
+-    "gpu_disk_cache.cc",
+-    "gpu_disk_cache.h",
+   ]
+ 
+   deps = [
+diff --git a/services/viz/public/cpp/gpu/BUILD.gn b/services/viz/public/cpp/gpu/BUILD.gn
+index c72bcf5f71..9bea0247b9 100644
+--- a/services/viz/public/cpp/gpu/BUILD.gn
++++ b/services/viz/public/cpp/gpu/BUILD.gn
+@@ -33,7 +33,6 @@ source_set("gpu") {
+     "//gpu/command_buffer/client:gles2_implementation",
+     "//gpu/command_buffer/client:raster",
+     "//gpu/command_buffer/client:raster_interface",
+-    "//gpu/command_buffer/client:webgpu",
+     "//gpu/command_buffer/common:raster",
+     "//gpu/config",
+     "//mojo/public/cpp/system",
+@@ -44,22 +43,3 @@ source_set("gpu") {
+   ]
+ }
+ 
+-source_set("tests") {
+-  testonly = true
+-
+-  sources = [ "gpu_unittest.cc" ]
+-
+-  deps = [
+-    "//base",
+-    "//base/test:test_support",
+-    "//gpu/ipc/common:test_support",
+-    "//mojo/core/embedder",
+-    "//mojo/public/cpp/system",
+-    "//services/service_manager/public/cpp",
+-    "//services/viz/public/cpp/gpu",
+-    "//testing/gtest",
+-    "//ui/gfx:test_support",
+-    "//ui/gfx/geometry",
+-    "//ui/gfx/geometry/mojom",
+-  ]
+-}
+diff --git a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc b/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
+index 8355ff12d0..11dd027b72 100644
+--- a/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
++++ b/services/viz/public/cpp/gpu/context_provider_command_buffer.cc
+@@ -36,8 +36,6 @@
+ #include "gpu/command_buffer/client/raster_implementation.h"
+ #include "gpu/command_buffer/client/shared_image_interface.h"
+ #include "gpu/command_buffer/client/transfer_buffer.h"
+-#include "gpu/command_buffer/client/webgpu_cmd_helper.h"
+-#include "gpu/command_buffer/client/webgpu_implementation.h"
+ #include "gpu/command_buffer/common/constants.h"
+ #include "gpu/command_buffer/common/skia_utils.h"
+ #include "gpu/config/skia_limits.h"
+@@ -268,42 +266,11 @@ gpu::ContextResult ContextProviderCommandBuffer::BindToCurrentSequence() {
+ 
+   switch (attributes_->which()) {
+     case gpu::mojom::ContextCreationAttribs::Tag::kWebgpu: {
+-      auto webgpu_helper =
+-          std::make_unique<gpu::webgpu::WebGPUCmdHelper>(command_buffer_.get());
+-      webgpu_helper->SetAutomaticFlushes(automatic_flushes_);
+-      bind_result_ =
+-          webgpu_helper->Initialize(memory_limits_.command_buffer_size);
+-      if (bind_result_ != gpu::ContextResult::kSuccess) {
+-        DLOG(ERROR) << "Failed to initialize WebGPUCmdHelper.";
+-        return bind_result_;
+-      }
+-
+-      // The transfer buffer is used to serialize Dawn commands
+-      auto transfer_buffer =
+-          std::make_unique<gpu::TransferBuffer>(webgpu_helper.get());
+-
+-      // The WebGPUImplementation exposes the WebGPUInterface, as well as the
+-      // gpu::ContextSupport interface.
+-      auto webgpu_impl = std::make_unique<gpu::webgpu::WebGPUImplementation>(
+-          webgpu_helper.get(), transfer_buffer.get(), command_buffer_.get(),
+-          default_task_runner_ != reply_task_runner_);
+-      bind_result_ = webgpu_impl->Initialize(memory_limits_);
+-      if (bind_result_ != gpu::ContextResult::kSuccess) {
+-        DLOG(ERROR) << "Failed to initialize WebGPUImplementation.";
+-        return bind_result_;
+-      }
+-
+-      std::string type_name =
+-          command_buffer_metrics::ContextTypeToString(context_type_);
+-      std::string unique_context_name =
+-          base::StringPrintf("%s-%p", type_name.c_str(), webgpu_impl.get());
+-
+-      // IMPORTANT: These hold raw_ptrs to each other, so must be set together.
+-      // See note in the header (and keep it up to date if things change).
+-      impl_ = webgpu_impl.get();
+-      webgpu_interface_ = std::move(webgpu_impl);
+-      transfer_buffer_ = std::move(transfer_buffer);
+-      helper_ = std::move(webgpu_helper);
++      // 刀11.5 (2026-09-14): WebGPU 客户端实现随 dawn 整体出局 (刀02/06 已断
++      // 服务端互操作)。本框架不创建 WebGPU 上下文, 该分支直接失败返回。
++      DLOG(ERROR) << "WebGPU context creation is not supported.";
++      bind_result_ = gpu::ContextResult::kFatalFailure;
++      return bind_result_;
+     } break;
+     case gpu::mojom::ContextCreationAttribs::Tag::kRaster: {
+       // The raster helper writes the command buffer protocol.
+@@ -561,14 +528,6 @@ bool ContextProviderCommandBuffer::IsLost() {
+   NOTREACHED();
+ }
+ 
+-gpu::webgpu::WebGPUInterface* ContextProviderCommandBuffer::WebGPUInterface() {
+-  DCHECK(bind_tried_);
+-  DCHECK_EQ(bind_result_, gpu::ContextResult::kSuccess);
+-  CheckValidSequenceOrLockAcquired();
+-
+-  return webgpu_interface_.get();
+-}
+-
+ bool ContextProviderCommandBuffer::OnMemoryDump(
+     const base::trace_event::MemoryDumpArgs& args,
+     base::trace_event::ProcessMemoryDump* pmd) {
+diff --git a/services/viz/public/cpp/gpu/context_provider_command_buffer.h b/services/viz/public/cpp/gpu/context_provider_command_buffer.h
+index d9fc1a67f2..42812c9539 100644
+--- a/services/viz/public/cpp/gpu/context_provider_command_buffer.h
++++ b/services/viz/public/cpp/gpu/context_provider_command_buffer.h
+@@ -51,9 +51,6 @@ namespace raster {
+ class RasterInterface;
+ }  // namespace raster
+ 
+-namespace webgpu {
+-class WebGPUInterface;
+-}  // namespace webgpu
+ }  // namespace gpu
+ 
+ namespace viz {
+@@ -132,7 +129,6 @@ class ContextProviderCommandBuffer
+   void RemoveObserver(ContextLostObserver* obs) override;
+   bool IsLost() override;
+ 
+-  gpu::webgpu::WebGPUInterface* WebGPUInterface();
+ 
+   // base::trace_event::MemoryDumpProvider implementation.
+   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
+@@ -221,8 +217,7 @@ class ContextProviderCommandBuffer
+   // Points to transfer_buffer_, helper_, and command_buffer_.
+   std::unique_ptr<gpu::raster::RasterInterface> raster_interface_;
+   // Points to transfer_buffer_, helper_, and command_buffer_.
+-  std::unique_ptr<gpu::webgpu::WebGPUInterface> webgpu_interface_;
+-  // This is an alias for gles2_impl_, raster_interface_, or webgpu_interface_.
++  // This is an alias for gles2_impl_ or raster_interface_.
+   raw_ptr<gpu::ImplementationBase> impl_ = nullptr;
+ 
+   // END IMPORTANT NOTE                                                       //

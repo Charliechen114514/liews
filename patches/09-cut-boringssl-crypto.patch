@@ -1,0 +1,495 @@
+diff --git a/base/BUILD.gn b/base/BUILD.gn
+index ddcc03bf9b..01e8e8f55b 100644
+--- a/base/BUILD.gn
++++ b/base/BUILD.gn
+@@ -1622,7 +1622,6 @@ component("base") {
+     "hash/sha1.cc",
+     "hash/sha1.h",
+   ]
+-  public_deps += [ "//third_party/boringssl" ]
+ 
+   sources += [
+     "base_paths.cc",
+diff --git a/base/hash/sha1.cc b/base/hash/sha1.cc
+index d169a73303..e7c92c7e8a 100644
+--- a/base/hash/sha1.cc
++++ b/base/hash/sha1.cc
+@@ -4,27 +4,55 @@
+ 
+ #include "base/hash/sha1.h"
+ 
++#include <windows.h>
++
++#include <bcrypt.h>
++
+ #include <cstdint>
+ #include <string>
+ #include <string_view>
+ 
++#include "base/check.h"
+ #include "base/containers/span.h"
+-#include "third_party/boringssl/src/include/openssl/sha.h"
++
++#pragma comment(lib, "bcrypt.lib")
+ 
+ namespace base {
+-static_assert(kSHA1Length == SHA_DIGEST_LENGTH,
+-              "SHA-1 digest length mismatch.");
++
++namespace {
++
++// boringssl 已移出闭包 (patches/09): Windows CNG 摘要。
++bool CngDigest(LPCWSTR algorithm,
++               const uint8_t* data,
++               size_t size,
++               uint8_t* out,
++               ULONG out_len) {
++  BCRYPT_ALG_HANDLE provider;
++  if (!BCRYPT_SUCCESS(
++          BCryptOpenAlgorithmProvider(&provider, algorithm, nullptr, 0))) {
++    return false;
++  }
++  NTSTATUS status = BCryptHash(provider, nullptr, 0,
++                               const_cast<PUCHAR>(data),
++                               static_cast<ULONG>(size), out, out_len);
++  BCryptCloseAlgorithmProvider(provider, 0);
++  return BCRYPT_SUCCESS(status);
++}
++
++}  // namespace
+ 
+ SHA1Digest SHA1Hash(span<const uint8_t> data) {
+   SHA1Digest digest;
+-  SHA1(data.data(), data.size(), digest.data());
++  CHECK(CngDigest(BCRYPT_SHA1_ALGORITHM, data.data(), data.size(),
++                  digest.data(), static_cast<ULONG>(digest.size())));
+   return digest;
+ }
+ 
+ std::string SHA1HashString(std::string_view str) {
+   std::string digest(kSHA1Length, '\0');
+-  SHA1(reinterpret_cast<const uint8_t*>(str.data()), str.size(),
+-       reinterpret_cast<uint8_t*>(digest.data()));
++  CHECK(CngDigest(BCRYPT_SHA1_ALGORITHM,
++                  reinterpret_cast<const uint8_t*>(str.data()), str.size(),
++                  reinterpret_cast<uint8_t*>(digest.data()), kSHA1Length));
+   return digest;
+ }
+ 
+diff --git a/base/metrics/metrics_hashes.cc b/base/metrics/metrics_hashes.cc
+index d4bd2b98f4..8af5cd5282 100644
+--- a/base/metrics/metrics_hashes.cc
++++ b/base/metrics/metrics_hashes.cc
+@@ -4,18 +4,45 @@
+ 
+ #include "base/metrics/metrics_hashes.h"
+ 
++#include <windows.h>
++
++#include <bcrypt.h>
++
+ #include <string.h>
+ 
+ #include <array>
+ #include <string_view>
+ 
+-#include "base/check_op.h"
++#include "base/check.h"
+ #include "base/containers/span.h"
+ #include "base/numerics/byte_conversions.h"
+-#include "third_party/boringssl/src/include/openssl/md5.h"
+-#include "third_party/boringssl/src/include/openssl/sha.h"
++
++#pragma comment(lib, "bcrypt.lib")
+ 
+ namespace base {
++
++namespace {
++
++// boringssl 已移出闭包 (patches/09): Windows CNG 摘要。
++bool CngDigest(LPCWSTR algorithm,
++               const uint8_t* data,
++               size_t size,
++               uint8_t* out,
++               ULONG out_len) {
++  BCRYPT_ALG_HANDLE provider;
++  if (!BCRYPT_SUCCESS(
++          BCryptOpenAlgorithmProvider(&provider, algorithm, nullptr, 0))) {
++    return false;
++  }
++  NTSTATUS status = BCryptHash(provider, nullptr, 0,
++                               const_cast<PUCHAR>(data),
++                               static_cast<ULONG>(size), out, out_len);
++  BCryptCloseAlgorithmProvider(provider, 0);
++  return BCRYPT_SUCCESS(status);
++}
++
++}  // namespace
++
+ uint64_t HashMetricName(std::string_view name) {
+   // Corresponding Python code for quick look up:
+   //
+@@ -23,16 +50,18 @@ uint64_t HashMetricName(std::string_view name) {
+   //   import hashlib
+   //   struct.unpack('>Q', hashlib.md5(name.encode('utf-8')).digest()[:8])[0]
+   //
+-  std::array<uint8_t, MD5_DIGEST_LENGTH> hash;
+-  ::MD5(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-        hash.data());
++  std::array<uint8_t, 16> hash;
++  CHECK(CngDigest(BCRYPT_MD5_ALGORITHM,
++                  reinterpret_cast<const uint8_t*>(name.data()), name.size(),
++                  hash.data(), static_cast<ULONG>(hash.size())));
+   return U64FromBigEndian(base::span(hash).first<8>());
+ }
+ 
+ uint32_t HashMetricNameAs32Bits(std::string_view name) {
+-  std::array<uint8_t, MD5_DIGEST_LENGTH> hash;
+-  ::MD5(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-        hash.data());
++  std::array<uint8_t, 16> hash;
++  CHECK(CngDigest(BCRYPT_MD5_ALGORITHM,
++                  reinterpret_cast<const uint8_t*>(name.data()), name.size(),
++                  hash.data(), static_cast<ULONG>(hash.size())));
+   return U32FromBigEndian(base::span(hash).first<4>());
+ }
+ 
+@@ -43,9 +72,10 @@ uint32_t ParseMetricHashTo32Bits(uint64_t hash) {
+ uint32_t HashFieldTrialName(std::string_view name) {
+   // SHA-1 is designed to produce a uniformly random spread in its output space,
+   // even for nearly-identical inputs.
+-  std::array<uint8_t, SHA_DIGEST_LENGTH> hash;
+-  ::SHA1(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-         hash.data());
++  std::array<uint8_t, 20> hash;
++  CHECK(CngDigest(BCRYPT_SHA1_ALGORITHM,
++                  reinterpret_cast<const uint8_t*>(name.data()), name.size(),
++                  hash.data(), static_cast<ULONG>(hash.size())));
+   return U32FromLittleEndian(base::span(hash).first<4>());
+ }
+ 
+diff --git a/base/rand_util.h b/base/rand_util.h
+index a9ca1f9295..8842e1fa74 100644
+--- a/base/rand_util.h
++++ b/base/rand_util.h
+@@ -23,7 +23,9 @@
+ #include "base/numerics/safe_conversions.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
++#if !defined(_WIN32)  // boringssl 已移出 Windows 闭包 (patches/09)
+ #include "third_party/boringssl/src/include/openssl/rand.h"
++#endif
+ 
+ namespace memory_simulator {
+ class MemoryHolder;
+diff --git a/base/rand_util_win.cc b/base/rand_util_win.cc
+index bf9a489b95..9659a57f2a 100644
+--- a/base/rand_util_win.cc
++++ b/base/rand_util_win.cc
+@@ -14,8 +14,6 @@
+ #include <limits>
+ 
+ #include "base/check.h"
+-#include "base/feature_list.h"
+-#include "third_party/boringssl/src/include/openssl/rand.h"
+ 
+ // Prototype for ProcessPrng.
+ // See: https://learn.microsoft.com/en-us/windows/win32/seccng/processprng
+@@ -27,23 +25,12 @@ namespace base {
+ 
+ namespace internal {
+ 
+-namespace {
+-
+-// The BoringSSl helpers are duplicated in rand_util_fuchsia.cc and
+-// rand_util_posix.cc.
+-std::atomic<bool> g_use_boringssl;
+-
+-BASE_FEATURE(kUseBoringSSLForRandBytes, FEATURE_ENABLED_BY_DEFAULT);
+-
+-}  // namespace
+-
+-void ConfigureBoringSSLBackedRandBytesFieldTrial() {
+-  g_use_boringssl.store(FeatureList::IsEnabled(kUseBoringSSLForRandBytes),
+-                        std::memory_order_relaxed);
+-}
++// boringssl 已移出闭包 (patches/09): 两个桩保持签名 (rand_util.h 声明,
++// fuchsia/posix 变体不复存在), Windows 一律走 ProcessPrng。
++void ConfigureBoringSSLBackedRandBytesFieldTrial() {}
+ 
+ bool UseBoringSSLForRandBytes() {
+-  return g_use_boringssl.load(std::memory_order_relaxed);
++  return false;
+ }
+ 
+ }  // namespace internal
+@@ -63,12 +50,6 @@ decltype(&ProcessPrng) GetProcessPrng() {
+ }
+ 
+ void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
+-  if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
+-    // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
+-    (void)RAND_bytes(output.data(), output.size());
+-    return;
+-  }
+-
+   static decltype(&ProcessPrng) process_prng_fn = GetProcessPrng();
+   BOOL success =
+       process_prng_fn(static_cast<BYTE*>(output.data()), output.size());
+diff --git a/base/unguessable_token.cc b/base/unguessable_token.cc
+index e996816597..aa9c32edc3 100644
+--- a/base/unguessable_token.cc
++++ b/base/unguessable_token.cc
+@@ -11,7 +11,6 @@
+ #include "base/format_macros.h"
+ #include "base/rand_util.h"
+ #include "build/build_config.h"
+-#include "third_party/boringssl/src/include/openssl/mem.h"
+ 
+ namespace base {
+ 
+@@ -57,7 +56,12 @@ std::optional<UnguessableToken> UnguessableToken::DeserializeFromString(
+ bool operator==(const UnguessableToken& lhs, const UnguessableToken& rhs) {
+   auto bytes = lhs.token_.AsBytes();
+   auto other_bytes = rhs.token_.AsBytes();
+-  return CRYPTO_memcmp(bytes.data(), other_bytes.data(), bytes.size()) == 0;
++  // boringssl 已移出闭包 (patches/09): 手写常数时间比较, 等价 CRYPTO_memcmp。
++  uint8_t diff = 0;
++  for (size_t i = 0; i < bytes.size(); ++i) {
++    diff |= bytes[i] ^ other_bytes[i];
++  }
++  return diff == 0;
+ }
+ 
+ std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
+diff --git a/base/win/sid.cc b/base/win/sid.cc
+index 3b430a7374..ed6fce5477 100644
+--- a/base/win/sid.cc
++++ b/base/win/sid.cc
+@@ -26,7 +26,13 @@
+ #include "base/win/scoped_handle.h"
+ #include "base/win/scoped_localalloc.h"
+ #include "base/win/windows_version.h"
+-#include "third_party/boringssl/src/include/openssl/sha.h"
++
++#include <bcrypt.h>
++
++#pragma comment(lib, "bcrypt.lib")
++
++// boringssl 已移出闭包 (patches/09)。
++constexpr size_t SHA256_DIGEST_LENGTH = 32;
+ 
+ namespace base::win {
+ 
+@@ -134,9 +140,15 @@ Sid Sid::FromNamedCapability(std::wstring_view capability_name) {
+   rids[0] = SECURITY_CAPABILITY_BASE_RID;
+   rids[1] = SECURITY_CAPABILITY_APP_RID;
+ 
+-  SHA256(reinterpret_cast<const uint8_t*>(cap_upper.c_str()),
+-         cap_upper.size() * sizeof(wchar_t),
+-         reinterpret_cast<uint8_t*>(&rids[2]));
++  BCRYPT_ALG_HANDLE sha256_provider = nullptr;
++  CHECK(BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(
++      &sha256_provider, BCRYPT_SHA256_ALGORITHM, nullptr, 0)));
++  CHECK(BCRYPT_SUCCESS(BCryptHash(
++      sha256_provider, nullptr, 0,
++      reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(cap_upper.c_str())),
++      static_cast<ULONG>(cap_upper.size() * sizeof(wchar_t)),
++      reinterpret_cast<PUCHAR>(&rids[2]), SHA256_DIGEST_LENGTH)));
++  BCryptCloseAlgorithmProvider(sha256_provider, 0);
+   return FromSubAuthorities(SECURITY_APP_PACKAGE_AUTHORITY, std::size(rids),
+                             rids);
+ }
+diff --git a/components/tracing/BUILD.gn b/components/tracing/BUILD.gn
+index 251d7e5fac..abf78f2994 100644
+--- a/components/tracing/BUILD.gn
++++ b/components/tracing/BUILD.gn
+@@ -64,7 +64,6 @@ if (is_win) {
+ 
+     deps = [
+       "//base",
+-      "//crypto",
+       "//services/tracing/public/cpp:perfetto_interning_index",
+       "//third_party/perfetto:libperfetto",
+     ]
+diff --git a/components/tracing/common/etw_consumer_win.cc b/components/tracing/common/etw_consumer_win.cc
+index 463cb0b49d..c027f05ae3 100644
+--- a/components/tracing/common/etw_consumer_win.cc
++++ b/components/tracing/common/etw_consumer_win.cc
+@@ -26,7 +26,6 @@
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+ #include "components/tracing/common/system_log_event_utils_win.h"
+-#include "crypto/hmac.h"
+ #include "services/tracing/public/cpp/perfetto/interning_index.h"
+ #include "third_party/perfetto/protos/perfetto/trace/etw/etw.pbzero.h"
+ #include "third_party/perfetto/protos/perfetto/trace/etw/etw_event.pbzero.h"
+@@ -80,10 +79,18 @@ uint64_t CopyPointerHash(base::BufferIterator<const uint8_t>& iterator,
+   // obscured and not reversible.
+   static const base::NoDestructor<std::vector<uint8_t>> key(
+       base::RandBytesAsVector(sizeof(pointer)));
+-  auto hash = crypto::hmac::SignSha256(*key, base::byte_span_from_ref(pointer));
+-
+-  // Return the first 64 bits of `hash` as a `uint64_t`.
+-  return base::U64FromNativeEndian(base::span(hash).first<8u>());
++  // boringssl/crypto 已移出闭包 (patches/09): 用带会话密钥的 FNV-1a 替代
++  // HMAC-SHA256。仅用于 ETW 轨迹里遮挡指针值, 非密码学用途。
++  uint64_t hash = 1469598103934665603ULL;  // FNV-1a offset basis
++  for (uint8_t byte : base::byte_span_from_ref(pointer)) {
++    hash ^= byte;
++    hash *= 1099511628211ULL;  // FNV-1a prime
++  }
++  for (uint8_t byte : *key) {
++    hash ^= byte;
++    hash *= 1099511628211ULL;
++  }
++  return hash;
+ }
+ 
+ // Returns the given `QueryPerformanceCounter` (QPC) timestamp in nanoseconds.
+diff --git a/components/variations/BUILD.gn b/components/variations/BUILD.gn
+index db25e6aa8f..555be6fafc 100644
+--- a/components/variations/BUILD.gn
++++ b/components/variations/BUILD.gn
+@@ -138,7 +138,6 @@ component("variations") {
+     "//components/crash/core/common:crash_key",
+     "//components/prefs",
+     "//components/version_info",
+-    "//crypto",
+     "//third_party/protobuf:protobuf_lite",
+     "//third_party/zlib/google:compression_utils",
+   ]
+diff --git a/components/variations/variations_seed_store.cc b/components/variations/variations_seed_store.cc
+index bb15365324..3fa7910b77 100644
+--- a/components/variations/variations_seed_store.cc
++++ b/components/variations/variations_seed_store.cc
+@@ -31,8 +31,6 @@
+ #include "components/variations/variations_safe_seed_store_local_state.h"
+ #include "components/variations/variations_switches.h"
+ #include "components/version_info/version_info.h"
+-#include "crypto/keypair.h"
+-#include "crypto/sign.h"
+ #include "third_party/protobuf/src/google/protobuf/io/coded_stream.h"
+ #include "third_party/zlib/google/compression_utils.h"
+ 
+@@ -50,7 +48,7 @@ namespace {
+ 
+ // The ECDSA public key of the variations server for verifying variations seed
+ // signatures.
+-const uint8_t kPublicKey[] = {
++[[maybe_unused]] const uint8_t kPublicKey[] = {
+     0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02,
+     0x01, 0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, 0x03,
+     0x42, 0x00, 0x04, 0x51, 0x7c, 0x31, 0x4b, 0x50, 0x42, 0xdd, 0x59, 0xda,
+@@ -94,24 +92,9 @@ VerifySignatureResult VerifySeedSignature(
+     return VerifySignatureResult::kMissingSignature;
+   }
+ 
+-  std::string signature;
+-  if (!base::Base64Decode(base64_seed_signature, &signature)) {
+-    return VerifySignatureResult::kDecodeFailed;
+-  }
+-
+-  std::optional<crypto::keypair::PublicKey> public_key =
+-      crypto::keypair::PublicKey::FromSubjectPublicKeyInfo(kPublicKey);
+-  // Since kPublicKey is hardcoded, if it fails to load, that's either
+-  // programmer error or a corrupt binary.
+-  CHECK(public_key);
+-
+-  if (!crypto::sign::Verify(crypto::sign::SignatureKind::ECDSA_SHA256,
+-                            *public_key, base::as_byte_span(seed_bytes),
+-                            base::as_byte_span(signature))) {
+-    return VerifySignatureResult::kInvalidSeedSignature;
+-  }
+-
+-  return VerifySignatureResult::kValidSignature;
++  // boringssl/crypto 已移出闭包 (patches/09): 桌面 UI 框架没有服务端种子
++  // 来源, 签名校验恒失败, 行为等同"从未收到有效种子"。
++  return VerifySignatureResult::kInvalidSeedSignature;
+ }
+ 
+ // Truncates a time to the start of the day in UTC. If given a time representing
+diff --git a/ipc/BUILD.gn b/ipc/BUILD.gn
+index 0e94853498..62122340b6 100644
+--- a/ipc/BUILD.gn
++++ b/ipc/BUILD.gn
+@@ -120,12 +120,6 @@ component("message_support") {
+     "//base",
+     "//mojo/public/cpp/system",
+   ]
+-
+-  if (is_win || is_mac) {
+-    # On Windows HandleAttachmentWin needs to generate random IDs.
+-    # On Mac MachPortAttachmentMac needs to generate random IDs.
+-    deps = [ "//crypto" ]
+-  }
+ }
+ 
+ mojom_component("mojom") {
+diff --git a/mojo/core/BUILD.gn b/mojo/core/BUILD.gn
+index e826c78689..81e82bd5dd 100644
+--- a/mojo/core/BUILD.gn
++++ b/mojo/core/BUILD.gn
+@@ -184,7 +184,6 @@ source_set("impl_for_embedder") {
+   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+ 
+   defines = [ "MOJO_SYSTEM_IMPL_IMPLEMENTATION" ]
+-  deps = [ "//crypto" ]
+ 
+   if (is_win) {
+     sources += [
+diff --git a/ui/display/util/BUILD.gn b/ui/display/util/BUILD.gn
+index 7c5aeb4491..2cfbccde69 100644
+--- a/ui/display/util/BUILD.gn
++++ b/ui/display/util/BUILD.gn
+@@ -25,7 +25,6 @@ component("util") {
+     "//base",
+     "//components/device_event_log",
+     "//components/viz/common/resources:shared_image_format",
+-    "//crypto",
+     "//skia",
+     "//ui/display/types",
+     "//ui/gfx:color_space",
+diff --git a/ui/display/util/edid_parser.cc b/ui/display/util/edid_parser.cc
+index 5ce53d109c..1347a77fb1 100644
+--- a/ui/display/util/edid_parser.cc
++++ b/ui/display/util/edid_parser.cc
+@@ -6,6 +6,9 @@
+ #include "ui/display/util/edid_parser.h"
+ 
+ #include <stddef.h>
++#include <windows.h>
++
++#include <bcrypt.h>
+ 
+ #include <algorithm>
+ #include <array>
+@@ -21,7 +24,6 @@
+ #include "base/strings/string_number_conversions.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/stringprintf.h"
+-#include "crypto/obsolete/md5.h"
+ #include "third_party/abseil-cpp/absl/strings/ascii.h"
+ #include "third_party/skia/include/core/SkColorSpace.h"
+ #include "ui/display/util/display_util.h"
+@@ -30,7 +32,19 @@
+ namespace display {
+ 
+ std::string Md5AsHexForEdid(std::string_view data) {
+-  return base::HexEncodeLower(crypto::obsolete::Md5::Hash(data));
++  // boringssl 已移出闭包 (patches/09): Windows CNG MD5。
++  BCRYPT_ALG_HANDLE provider = nullptr;
++  CHECK(BCRYPT_SUCCESS(
++      BCryptOpenAlgorithmProvider(&provider, BCRYPT_MD5_ALGORITHM, nullptr, 0)));
++  std::array<uint8_t, 16> digest = {};
++  NTSTATUS status = BCryptHash(provider, nullptr, 0,
++                               reinterpret_cast<PUCHAR>(
++                                   const_cast<char*>(data.data())),
++                               static_cast<ULONG>(data.size()), digest.data(),
++                               static_cast<ULONG>(digest.size()));
++  BCryptCloseAlgorithmProvider(provider, 0);
++  CHECK(BCRYPT_SUCCESS(status));
++  return base::HexEncodeLower(digest);
+ }
+ 
+ namespace {

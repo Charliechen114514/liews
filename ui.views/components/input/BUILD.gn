@@ -1,0 +1,103 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/ui.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+
+component("input") {
+  defines = [ "IS_INPUT_IMPL" ]
+  sources = [
+    "cursor_manager.h",
+    "features.cc",
+    "features.h",
+    "gesture_event_stream_validator.h",
+    "input_constants.h",
+    "input_event_source.h",
+    "render_input_router_iterator.h",
+    "render_widget_host_view_input_observer.cc",
+    "render_widget_host_view_input_observer.h",
+    "switches.cc",
+    "switches.h",
+    "tap_suppression_controller.cc",
+    "tap_suppression_controller.h",
+    "timeout_monitor.cc",
+    "timeout_monitor.h",
+    "touch_action_filter.h",
+  ]
+  public_deps = [ "//ui/base/mojom:ui_base_types" ]
+  deps = [
+    "//base",
+    "//cc",
+    "//services/viz/public/mojom",
+    "//ui/base",
+    "//ui/base/cursor",
+    "//ui/events",
+    "//ui/events:events_base",
+    "//ui/events:gesture_detection",
+  ]
+  if (is_android) {
+    sources += [
+      "android/android_input_callback.cc",
+      "android/android_input_callback.h",
+      "android/input_feature_map.cc",
+      "android/input_receiver_data.cc",
+      "android/input_receiver_data.h",
+      "android/input_token_forwarder.cc",
+      "android/input_token_forwarder.h",
+      "android/scoped_input_receiver.cc",
+      "android/scoped_input_receiver.h",
+      "android/scoped_input_receiver_callbacks.cc",
+      "android/scoped_input_receiver_callbacks.h",
+      "android/scoped_input_transfer_token.cc",
+      "android/scoped_input_transfer_token.h",
+    ]
+    deps += [
+      "//components/input/android:jni_headers",
+      "//ui/events:motionevent_jni_headers",
+    ]
+  }
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "tap_suppression_controller_unittest.cc",
+  ]
+  deps = [
+    ":input",
+    "//base",
+    "//base/test:test_support",
+    "//testing/gtest",
+    "//ui/base:features",
+    "//ui/events",
+    "//ui/events:dom_keycode_converter",
+    "//ui/events:test_support",
+    "//ui/events:velocity_tracker",
+  ]
+}
+
+source_set("test_support") {
+  testonly = true
+  sources = []
+  deps = [
+    ":input",
+    "//base",
+    "//cc",
+  ]
+}
+
+source_set("browser_tests") {
+  testonly = true
+  sources = [ "test/input_browsertest.cc" ]
+
+  defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
+
+  deps = [
+    "//base",
+    "//components/input",
+    "//content/shell:content_shell_lib",
+    "//content/test:browsertest_support",
+    "//content/test:test_support",
+  ]
+}
