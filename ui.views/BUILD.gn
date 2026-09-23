@@ -1,14 +1,42 @@
-# views-standalone 独立构建根。
-# default = 产品本体 //ui/views:views 静态库 + 判据示例 //examples/*。
-# (views_examples 需 test_support 家族 [base/cc/viz test + InProcessContextFactory
-#  链], 其"嵌入方化"单独立项; 届时在此追加 //ui/views/examples:views_examples)
 group("default") {
-  # views_smoke 借 test_support 家族作最小嵌入宿主 (Chromium 树内无独立 app runner,
-  # 测试基建即事实上的嵌入方), 故 default 整组 testonly。
   testonly = true
   deps = [
+    ":liew_bridge",
+    ":liew_bridge_recipe",
+  ]
+}
+
+# Keep the executable edge in the generated Ninja graph so build.py can read
+# its compile/link recipe. build.py explicitly builds only :liew_bridge, so the
+# recipe remains discoverable without linking views_smoke.exe on daily builds.
+group("liew_bridge_recipe") {
+  testonly = true
+  deps = [ "//.liew/examples/views_smoke" ]
+}
+
+# Build the complete object/library/resource closure consumed by liew.dll,
+# without paying for a second giant link into views_smoke.exe. The executable
+# target remains available explicitly and is also the bridge recipe source.
+group("liew_bridge") {
+  testonly = true
+  deps = [
+    "//base",
+    "//base/test:test_support",
+    "//components/viz/host",
+    "//components/viz/service",
+    "//mojo/core/embedder",
+    "//third_party/perfetto/src/trace_processor:export_json",
+    "//third_party/perfetto/src/trace_processor:storage_minimal",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/base/ime",
+    "//ui/compositor",
+    "//ui/compositor:test_support",
+    "//ui/gfx",
+    "//ui/gl",
+    "//ui/resources:ui_test_pak",
     "//ui/views:views",
-    "//examples/views_smoke",
-    "//examples/views_media_smoke",
+    "//ui/views:test_support",
+    "//ui/wm",
   ]
 }

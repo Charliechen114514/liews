@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """update.py — 源树状态入口
 
-应用补丁 01-22 → 安装判据根 + examples。只管 chromium 源树一侧;
+应用补丁 01-22 → 安装判据根 + GN 判据 examples。只管 chromium 源树一侧;
 提取/构建另行显式执行 (select.py / build.py)。
 成功后源树保持补丁态 (幂等, 重跑识别已应用跳过); 仅中途失败回滚。
 
@@ -18,13 +18,42 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 ROOT_BUILD_GN = """group("default") {
   testonly = true
   deps = [
+    ":liew_bridge",
+    ":liew_bridge_recipe",
+  ]
+}
+
+group("liew_bridge_recipe") {
+  testonly = true
+  deps = [ "//.liew/examples/views_smoke" ]
+}
+
+group("liew_bridge") {
+  testonly = true
+  deps = [
+    "//base",
+    "//base/test:test_support",
+    "//components/viz/host",
+    "//components/viz/service",
+    "//mojo/core/embedder",
+    "//third_party/perfetto/src/trace_processor:export_json",
+    "//third_party/perfetto/src/trace_processor:storage_minimal",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/base/ime",
+    "//ui/compositor",
+    "//ui/compositor:test_support",
+    "//ui/gfx",
+    "//ui/gl",
+    "//ui/resources:ui_test_pak",
     "//ui/views:views",
-    "//ui/views/examples:views_examples",
-    "//examples/views_smoke",
-    "//examples/views_media_smoke",
+    "//ui/views:test_support",
+    "//ui/wm",
   ]
 }
 """
+
+GN_EXAMPLES = ("views_smoke", "views_media_smoke")
 
 
 def die(msg):
@@ -82,7 +111,7 @@ def main():
         sub_applied.append((sub_dir, p))
         print(f"[update] submodule 应用: {rel}", flush=True)
 
-    # --- 阶段 1: 判据根 + examples (成功保持补丁态; 仅失败回滚) ---
+    # --- 阶段 1: 判据根 + GN examples (成功保持补丁态; 仅失败回滚) ---
     bak = os.path.join(src, "BUILD.gn.vendor-bak")
     shutil.copy2(os.path.join(src, "BUILD.gn"), bak)
     succeeded = False
@@ -90,15 +119,18 @@ def main():
         with open(os.path.join(src, "BUILD.gn"), "w",
                   encoding="utf-8", newline="\n") as fh:
             fh.write(ROOT_BUILD_GN)
-        dst_ex = os.path.join(src, "examples")
-        os.makedirs(dst_ex, exist_ok=True)
-        src_ex = os.path.join(repo, "examples")
-        for base, _dirs, names in os.walk(src_ex):
-            for n in names:
-                sp = os.path.join(base, n)
-                dp = os.path.join(dst_ex, os.path.relpath(sp, src_ex))
-                os.makedirs(os.path.dirname(dp), exist_ok=True)
-                shutil.copy2(sp, dp)
+        dst_ov = os.path.join(src, ".liew", "examples")
+        os.makedirs(dst_ov, exist_ok=True)
+        src_ov = os.path.join(repo, "examples")
+        for example in GN_EXAMPLES:
+            example_src = os.path.join(src_ov, example)
+            for base, _dirs, names in os.walk(example_src):
+                for n in names:
+                    sp = os.path.join(base, n)
+                    dp = os.path.join(dst_ov, example,
+                                      os.path.relpath(sp, example_src))
+                    os.makedirs(os.path.dirname(dp), exist_ok=True)
+                    shutil.copy2(sp, dp)
 
         succeeded = True
         print("[update] 完成 (源树保持补丁态)", flush=True)
@@ -107,7 +139,8 @@ def main():
     finally:
         if not succeeded:
             shutil.move(bak, os.path.join(src, "BUILD.gn"))
-            shutil.rmtree(os.path.join(src, "examples"), ignore_errors=True)
+            shutil.rmtree(os.path.join(src, ".liew", "examples"),
+                          ignore_errors=True)
             for p in reversed(applied):   # 栈式: 逆序回滚
                 g("apply", "-R", "--ignore-whitespace", p, cwd=src, check=False)
             for sub_dir, p in reversed(sub_applied):

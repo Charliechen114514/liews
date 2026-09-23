@@ -1,3 +1,13 @@
 __pycache__/
 *.pyc
 .DS_Store
+# 构建输出 (GN 树外 out: build/Release) + 编译数据库
+/build/
+
+# Generated GN overlay; canonical example sources live in /examples.
+/ui.views/.liew/
+
+# AI subs dir should not enter
+.claude/
+.cache/
+.codex/

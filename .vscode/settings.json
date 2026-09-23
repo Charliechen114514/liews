@@ -1,0 +1,4 @@
+{
+  // 仓库根 CMake 工程 (clang-cl + build.py 流水线), 配置无需选 kit。
+  "cmake.configureOnOpen": true
+}

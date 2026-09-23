@@ -1,0 +1,83 @@
+# liew SDK 包配置 — 仓库根 CMake 在 configure 期生成到 <repo>/build/cmake/。
+# SDK = 本仓库检出 + 本 build 目录（绝对路径烘焙；无 install、无重定位）。消费：
+#   set(liew_DIR "<repo>/build/cmake")  # 或把 <repo>/build 并入 CMAKE_PREFIX_PATH
+#   find_package(liew CONFIG REQUIRED)  # 必须在顶层 CMakeLists、先于 add_subdirectory
+#   target_link_libraries(app PRIVATE liew::liew)
+#   liew_copy_runtime_assets(app)       # POST_BUILD 拷 liew.dll + 树运行资源
+# 工具链要求：clang-cl + CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded。
+@PACKAGE_INIT@
+
+set_and_check(liew_SOURCE_DIR  "@PACKAGE_LIEW_SOURCE_DIR@")
+set_and_check(liew_TREE_OUT    "@PACKAGE_LIEW_TREE_OUT@")
+set_and_check(liew_FLAGS_CMAKE "@PACKAGE_LIEW_FLAGS_CMAKE@")
+# liew.dll/lib 是同一次 cmake 构建的产物，首次 configure 时还不存在，
+# 外部消费路径由下方闭包哨兵兜底。
+set(liew_RUNTIME "@PACKAGE_LIEW_RUNTIME@")
+set(liew_LIBRARY "@PACKAGE_LIEW_LIBRARY@")
+
+# ---- fail-fast 1: SDK 已构建（仓内自举消费豁免——构建边稍后由 liew-tree/liew 补齐）----
+if(NOT CMAKE_SOURCE_DIR STREQUAL "${liew_SOURCE_DIR}")
+  if(NOT EXISTS "${liew_LIBRARY}" OR NOT EXISTS "${liew_RUNTIME}")
+    message(FATAL_ERROR
+      "liew SDK 尚未构建（缺 liew.dll / liew.lib 之一）。"
+      "请先构建 liews 仓库本体: cmake -B build && cmake --build build")
+  endif()
+endif()
+
+# ---- fail-fast 2: 消费端工具链须与树 ABI 对齐 ----
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang"
+   OR NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  message(FATAL_ERROR
+    "liew 要求 clang-cl（std::__Cr ABI 装饰须与树内一致），当前: "
+    "${CMAKE_CXX_COMPILER}。请 -DCMAKE_CXX_COMPILER=clang-cl。")
+endif()
+if(NOT CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "MultiThreaded")
+  message(FATAL_ERROR "树内对象是静态 CRT（/MT）; 请在 project() 之后建目标之前 "
+    "set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)。当前: ${CMAKE_MSVC_RUNTIME_LIBRARY}")
+endif()
+
+# ---- 使用口径：consumer 只链接 import lib，不再接触 GN 的巨型闭包 ----
+include("${liew_FLAGS_CMAKE}")  # LIEW_CXX_INCLUDES / _SYSTEM_INCLUDES / _OPTIONS
+
+add_library(liew::liew SHARED IMPORTED GLOBAL)
+set_target_properties(liew::liew PROPERTIES
+  IMPORTED_LOCATION "${liew_RUNTIME}"
+  IMPORTED_IMPLIB "${liew_LIBRARY}")
+
+# 双 include 档承重: -I（用户档, 含树 libc++）必须压住 -imsvc（系统档, MSVC/SDK）,
+# 否则 MSVC STL 遮蔽树 libc++、std::__Cr 装饰链接期对不上。imported 目标的
+# INTERFACE_INCLUDE_DIRECTORIES 默认按系统档消费, 须显式关掉; 而
+# INTERFACE_SYSTEM_INCLUDE_DIRECTORIES 条目恒按系统档（且须同列于两个清单）。
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.25)
+  set_property(TARGET liew::liew PROPERTY SYSTEM FALSE)
+elseif(CMAKE_VERSION VERSION_GREATER_EQUAL 3.23)
+  set_property(TARGET liew::liew PROPERTY IMPORTED_NO_SYSTEM TRUE)
+else()
+  message(FATAL_ERROR "消费 liew SDK 需要 CMake >= 3.23（IMPORTED_NO_SYSTEM）")
+endif()
+set_property(TARGET liew::liew APPEND PROPERTY INTERFACE_INCLUDE_DIRECTORIES
+  "${liew_SOURCE_DIR}" ${LIEW_CXX_INCLUDES} ${LIEW_CXX_SYSTEM_INCLUDES})
+set_property(TARGET liew::liew APPEND PROPERTY INTERFACE_SYSTEM_INCLUDE_DIRECTORIES
+  ${LIEW_CXX_SYSTEM_INCLUDES})
+set_property(TARGET liew::liew APPEND PROPERTY INTERFACE_COMPILE_OPTIONS
+  ${LIEW_CXX_OPTIONS})
+# 引号值宏: 桥提取时已剥离（嵌套引号过不了 Windows 命令行）, 此处以绝对路径重定义。
+set_property(TARGET liew::liew APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS
+  "SK_USER_CONFIG_HEADER=\"${liew_SOURCE_DIR}/ui.views/skia/config/SkUserConfig.h\""
+  "SK_GPU_WORKAROUNDS_HEADER=\"${liew_TREE_OUT}/gen/gpu/config/gpu_driver_bug_workaround_autogen.h\"")
+# ---- POST_BUILD: liew.dll 与树运行资源落到 exe 旁 ----
+function(liew_copy_runtime_assets tgt)
+  add_custom_command(TARGET ${tgt} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${liew_RUNTIME}" "$<TARGET_FILE_DIR:${tgt}>"
+    VERBATIM)
+  foreach(a IN ITEMS libEGL.dll libGLESv2.dll d3dcompiler_47.dll icudtl.dat
+                        ui_test.pak ui_resources_100_percent.pak)
+    add_custom_command(TARGET ${tgt} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${liew_TREE_OUT}/${a}" "$<TARGET_FILE_DIR:${tgt}>"
+      VERBATIM)
+  endforeach()
+endfunction()
+
+message(STATUS "liew ${liew_VERSION} @ ${liew_SOURCE_DIR} (tree: ${liew_TREE_OUT})")

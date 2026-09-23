@@ -651,9 +651,9 @@ def ensure_graph(src, out, gn):
     root_gn = os.path.join(src, "BUILD.gn")
     with open(root_gn, encoding="utf-8") as fh:
         root = fh.read()
-    if "//examples/views_media_smoke" not in root:
-        sys.exit("[select] 源树根 BUILD.gn 未含 //examples/* 判据目标 "
-                 "(E: 侧状态由 update.sh 维护: 应用补丁 + 换装根 BUILD.gn + examples)")
+    if "//.liew/examples/views_smoke" not in root:
+        sys.exit("[select] 源树根 BUILD.gn 未含 //.liew/examples/* 判据目标 "
+                 "(E: 侧状态由 update.sh 维护: 应用补丁 + 换装根 BUILD.gn + overlay)")
 
     repo_args = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              os.pardir, "args.gn")
@@ -684,9 +684,13 @@ def ensure_graph(src, out, gn):
         sys.exit(f"[select] gn gen 失败 (exit={r.returncode})")
 
 
-def stage_root(repo, script_repo):
-    """目标树缺的根文件/examples 从本仓补齐 —— 调用方零仪式 (启动前置内化)。
+GN_EXAMPLES = ("views_smoke", "views_media_smoke")
 
+
+def stage_root(repo, script_repo):
+    """目标树缺的根文件/GN 判据 examples 从本仓补齐。
+
+    CMake examples（如 liew_smoke）留在仓库根，不进入 vendor 树。
     只补缺失, 绝不覆盖已有 (幂等; 提取回本仓时 repo==script_repo 天然 no-op)。
     """
     staged = []
@@ -704,16 +708,20 @@ def stage_root(repo, script_repo):
     src_ov = os.path.join(script_repo, "examples")
     dst_ov = os.path.join(repo, "examples")
     if os.path.isdir(src_ov):
-        for base, _dirs, names in os.walk(src_ov):
-            rel = os.path.relpath(base, src_ov)
-            dbase = dst_ov if rel == "." else os.path.join(dst_ov, rel)
-            for n in names:
-                sp, dp = os.path.join(base, n), os.path.join(dbase, n)
-                if not os.path.isfile(dp):
-                    os.makedirs(dbase, exist_ok=True)
-                    shutil.copy2(sp, dp)
-                    r = os.path.relpath(dp, dst_ov).replace("\\", "/")
-                    staged.append(f"examples/{r}")
+        for example in GN_EXAMPLES:
+            example_src = os.path.join(src_ov, example)
+            for base, _dirs, names in os.walk(example_src):
+                rel = os.path.relpath(base, example_src)
+                dbase = os.path.join(dst_ov, example)
+                if rel != ".":
+                    dbase = os.path.join(dbase, rel)
+                for n in names:
+                    sp, dp = os.path.join(base, n), os.path.join(dbase, n)
+                    if not os.path.isfile(dp):
+                        os.makedirs(dbase, exist_ok=True)
+                        shutil.copy2(sp, dp)
+                        r = os.path.relpath(dp, dst_ov).replace("\\", "/")
+                        staged.append(f"examples/{r}")
     return staged
 
 

@@ -35,9 +35,40 @@ cargo install bindgen-cli        # C/Rust 绑定生成器
 
 ```powershell
 git clone https://github.com/Charliechen114514/liews.git && cd liews
-python scripts\build.py all --target ui.views
-# 在Windows上需要编译大约20000组依赖
+cmake -B build
+cmake --build build
+# 流水线: ui.views 树(GN+ninja) -> liew/examples(CMake 编译/链接) -> compdb -> deploy
+# 在Windows上需要编译大约20000组依赖; 生成器由你的环境/CMake Tools 决定
 ```
+
+架构边界：**ui.views/ 树保持 GN**（`scripts/build.py build` 驱动）；**自研代码（liew/、examples/ 新增项）由仓库根 CMake 编译**。`build.py bridge` 从 GN 产物提取同源编译口径与静态链接闭包，闭包只链接一次形成单体 `liew.dll`；consumer 和 examples 只链接小型 import library。树内 `views_smoke` 保留为显式诊断目标，不再进入日常默认链接。
+
+单步直行：`python scripts\build.py [build|bridge|compdb|deploy]`（`--target` 缺省即仓库内 ui.views 树）。
+
+> 构建输出目录在仓库根 `build/Release`（GN 树外 out），部署集在 `build/deploy`。
+
+### IDE（VSCode）
+
+`.vscode/` 已配好（CMake Tools：`cmake.configureOnOpen`）。编译数据库 `build/compile_commands.json` 是**合并库**：CMake 侧条目（configure 时生成）+ 树内条目（views 全闭包，`build.py compdb` 并入，树内 examples 拷贝路径已重映射回仓库正本），供任意消费 compile_commands 的工具使用；单步 `python scripts\build.py compdb` 可不触发全量编译先补齐树内条目。注意 CMake 每次重新 configure 会重写该文件为其自身条目，`cmake --build` 流水线的 compdb 步骤会自动重新并入树内条目。
+
+### 把 liew 当作 SDK 消费（find_package）
+
+`cmake -B build` 之后，`build/cmake/` 里即有导出包（SDK = 本仓库检出 + 本 build 目录，绝对路径烘焙，不做安装/重定位）：
+
+```cmake
+cmake_minimum_required(VERSION 3.23)
+project(myapp LANGUAGES CXX)
+set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)  # 树内对象是 /MT，消费端必须对齐
+set(liew_DIR "E:/liews/build/cmake")           # 或把 E:/liews/build 并入 CMAKE_PREFIX_PATH
+find_package(liew CONFIG REQUIRED)             # 顶层 CMakeLists、先于 add_subdirectory
+add_executable(myapp main.cc)
+target_link_libraries(myapp PRIVATE liew::liew)
+liew_copy_runtime_assets(myapp)                # POST_BUILD 拷树内运行期资源（dll/pak/icudtl）
+```
+
+工具链要求：仓库本体使用 clang-cl + Ninja（`cmake -G Ninja -DCMAKE_CXX_COMPILER=clang-cl`）。包在 `find_package` 时 fail-fast：SDK 未构建（缺 `liew.dll`/`liew.lib`）、编译器或 CRT 不匹配都会直接给出修法。约 5000 个 GN 输入只由仓库本体直连 lld-link；外部 consumer 不再接触响应文件或改写自己的链接规则。`examples/` 即以相同的动态库方式自举消费。
+
+自本节起，构建输出由旧位置 `ui.views/out/Release` 迁至仓库根 `build/Release`；旧 `ui.views/out/` 可手动删除腾空间。
 
 ### Advanced
 
@@ -56,7 +87,7 @@ python scripts\update.py <chromium src 路径>
 python scripts\select.py --src <chromium src> --repo <新树目录> --root-outputs views_examples views_smoke views_media_smoke --no-hash
 
 # 构建新树，如果您愿意，此时自己的源chrominum树就可以git reset --hard 到自己其他的commit上了:)
-python scripts\build.py all --target <新树目录>
+python scripts\build.py build --target <新树目录>
 ```
 
 ## 已知事项
