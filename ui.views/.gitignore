@@ -1,7 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
-analysis/
+/analysis/
 out/
 third_party/rust-toolchain/
 third_party/llvm-build/
