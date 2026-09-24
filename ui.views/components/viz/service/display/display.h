@@ -212,9 +212,14 @@ class VIZ_SERVICE_EXPORT Display : public DisplaySchedulerClient,
       mojo::PendingReceiver<gfx::mojom::DelegatedInkPointRenderer>
           pending_receiver);
 
-  // `old_client` is used to guarantee that the callee is a correct owner of
-  // this Display instance.
-  void ResetDisplayClientForTesting(DisplayClient* old_client);
+  // Detaches the current DisplayClient. `old_client` guarantees that the
+  // caller owns the client currently attached to this Display.
+  void ResetDisplayClient(DisplayClient* old_client);
+
+  // Kept for downstream tests that still use the historical API name.
+  void ResetDisplayClientForTesting(DisplayClient* old_client) {
+    ResetDisplayClient(old_client);
+  }
 
   // Starts overdraw tacking for content rendered on the OutputSurface.
   void StartTrackingOverdraw(int interval_length_in_seconds);

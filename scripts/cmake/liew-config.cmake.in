@@ -70,9 +70,12 @@ function(liew_copy_runtime_assets tgt)
   add_custom_command(TARGET ${tgt} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${liew_RUNTIME}" "$<TARGET_FILE_DIR:${tgt}>"
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+            "$<TARGET_FILE_DIR:${tgt}>/ui_test.pak"
+            "$<TARGET_FILE_DIR:${tgt}>/ui_resources_100_percent.pak"
     VERBATIM)
   foreach(a IN ITEMS libEGL.dll libGLESv2.dll d3dcompiler_47.dll icudtl.dat
-                        ui_test.pak ui_resources_100_percent.pak)
+                        liew_resources.pak)
     add_custom_command(TARGET ${tgt} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${liew_TREE_OUT}/${a}" "$<TARGET_FILE_DIR:${tgt}>"

@@ -1,3 +1,24 @@
+import("//tools/grit/repack.gni")
+
+# Runtime resources consumed by the liew embedder. This intentionally uses
+# production grit outputs instead of the ui_test.pak convenience bundle.
+repack("liew_resources") {
+  sources = [
+    "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
+    "$root_gen_dir/ui/resources/ui_resources_100_percent.pak",
+    "$root_gen_dir/ui/strings/app_locale_settings_en-US.pak",
+    "$root_gen_dir/ui/strings/ax_strings_en-US.pak",
+    "$root_gen_dir/ui/strings/ui_strings_en-US.pak",
+    "$root_gen_dir/ui/views/resources/views_resources_100_percent.pak",
+  ]
+  output = "$root_out_dir/liew_resources.pak"
+  deps = [
+    "//ui/resources",
+    "//ui/strings",
+    "//ui/views/resources",
+  ]
+}
+
 executable("views_smoke") {
   testonly = true
   sources = [ "views_smoke_main.cc" ]
@@ -19,6 +40,31 @@ executable("views_smoke") {
     "//ui/resources:ui_test_pak",
     "//ui/views",
     "//ui/views:test_support",
+    "//ui/wm",
+  ]
+  if (is_win) {
+    deps += [ "//build/win:default_exe_manifest" ]
+  }
+}
+
+executable("liew_link_recipe") {
+  sources = [ "liew_link_recipe.cc" ]
+  deps = [
+    ":liew_resources",
+    "//base",
+    "//components/viz/host",
+    "//components/viz/service",
+    "//mojo/core/embedder",
+    "//services/viz/public/cpp/gpu:context_provider",
+    "//third_party/perfetto/src/trace_processor:export_json",
+    "//third_party/perfetto/src/trace_processor:storage_minimal",
+    "//ui/aura",
+    "//ui/base",
+    "//ui/base/ime",
+    "//ui/compositor",
+    "//ui/gfx",
+    "//ui/gl",
+    "//ui/views",
     "//ui/wm",
   ]
   if (is_win) {

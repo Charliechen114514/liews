@@ -271,7 +271,7 @@ gpu::ContextResult ContextProviderCommandBuffer::BindToCurrentSequence() {
       DLOG(ERROR) << "WebGPU context creation is not supported.";
       bind_result_ = gpu::ContextResult::kFatalFailure;
       return bind_result_;
-    } break;
+    }
     case gpu::mojom::ContextCreationAttribs::Tag::kRaster: {
       // The raster helper writes the command buffer protocol.
       auto raster_helper =

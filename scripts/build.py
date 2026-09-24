@@ -50,12 +50,9 @@ def run(cmd, **kw):
 
 
 def run_logged(cmd, log_path, **kw):
-    """Run a child: direct inherit on a console, stream+tee when piped."""
+    """Run a child and stream+tee its combined output."""
     with open(log_path, "ab") as log:
         log.write(("\n===== %s =====\n" % " ".join(cmd[:4])).encode("utf-8"))
-    if sys.stdout.isatty():
-        # Real console: child writes straight to the terminal, zero relay.
-        return subprocess.call(cmd, **kw)
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, text=True,
                          encoding="utf-8", errors="replace", **kw)
@@ -153,6 +150,7 @@ def remap_compdb(entries, target, repo):
 
 def write_bridge(repo, target, out_dir, gn, ninja):
     """Export GN's compile/link recipe as CMake-includeable lists and an rsp."""
+    import io
     import re
     import shlex
 
@@ -184,9 +182,9 @@ def write_bridge(repo, target, out_dir, gn, ninja):
         die("bridge: ninja -t compdb failed")
     entries = json.loads(r.stdout.decode("utf-8", "replace"))
     ref = next((e for e in entries if e.get("file", "").replace("\\", "/").endswith(
-        "examples/views_smoke/views_smoke_main.cc")), None)
+        "examples/views_smoke/liew_link_recipe.cc")), None)
     if ref is None:
-        die("bridge: no //.liew/examples/views_smoke reference entry in compdb")
+        die("bridge: no liew_link_recipe reference entry in compdb")
 
     # Quoted-value macros get ripped out whole; CMake re-defines them (see
     # liew/CMakeLists.txt) because nested quotes never survive the Windows
@@ -220,12 +218,13 @@ def write_bridge(repo, target, out_dir, gn, ninja):
     # ---- link recipe: the link edge's EXPLICIT inputs from build.ninja ----
     # (ninja -t inputs is transitive incl. order-only noise; it pulled both
     # proto variants as raw objs and produced duplicate symbols at link time)
-    host_main = ("obj/.liew/examples/views_smoke/views_smoke/"
-                 "views_smoke_main.obj")
-    edge_re = re.compile(r'^build [^:]*\bviews_smoke\.exe\b[^:]*: link\b')
+    host_main = ("obj/.liew/examples/views_smoke/liew_link_recipe/"
+                 "liew_link_recipe.obj")
+    edge_re = re.compile(
+        r'^build [^:]*\bliew_link_recipe\.exe\b[^:]*: link\b')
     raw, started = [], False
     # GN writes per-target ninja files; the exe's link edge lives in its own.
-    for nf in ("obj/.liew/examples/views_smoke/views_smoke.ninja",
+    for nf in ("obj/.liew/examples/views_smoke/liew_link_recipe.ninja",
                "build.ninja", "toolchain.ninja"):
         path = os.path.join(out_dir, nf)
         if not os.path.isfile(path):
@@ -245,7 +244,7 @@ def write_bridge(repo, target, out_dir, gn, ninja):
         if started:
             break
     if not started:
-        die("bridge: link edge for views_smoke.exe not found in ninja files")
+        die("bridge: link edge for liew_link_recipe.exe not found in ninja files")
     edge = " ".join(x.strip() for x in raw)
     m = re.search(r':\s*link\s+(.*?)\s*\|', edge)
     if not m:
@@ -281,7 +280,8 @@ def write_bridge(repo, target, out_dir, gn, ninja):
     env = dict(os.environ, DEPOT_TOOLS_WIN_TOOLCHAIN="0")
     out_rel = os.path.relpath(out_dir, target).replace(os.sep, "/")
     r = subprocess.run(
-        [gn, "desc", out_rel, "//.liew/examples/views_smoke:views_smoke",
+        [gn, "desc", out_rel,
+         "//.liew/examples/views_smoke:liew_link_recipe",
          "libs", "--all"], cwd=target, env=env, capture_output=True, text=True,
         encoding="utf-8", errors="replace")
     if r.returncode != 0:
@@ -300,12 +300,13 @@ def write_bridge(repo, target, out_dir, gn, ninja):
     # in objs (msvcprt etc.). Without them the rust rlibs' __ExceptionPtr*
     # and friends stay undefined.
     r = subprocess.run([ninja, "-C", out_dir, "-t", "commands",
-                        "views_smoke.exe"], capture_output=True, text=True,
+                        "liew_link_recipe.exe"], capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     libpaths = []
     if r.returncode == 0:
         for ln in r.stdout.splitlines():
-            if "lld-link" not in ln or "/OUT:./views_smoke.exe" not in ln:
+            if ("lld-link" not in ln or
+                    "/OUT:./liew_link_recipe.exe" not in ln):
                 continue
             found = re.findall(r'"-libpath:([^"]+)"', ln)
             found += [t[len("-libpath:"):] for t in ln.split()
@@ -314,7 +315,7 @@ def write_bridge(repo, target, out_dir, gn, ninja):
                 libpaths = found
                 break
     if not libpaths:
-        die(f"bridge: no -libpath in views_smoke link command "
+        die(f"bridge: no -libpath in liew_link_recipe link command "
             f"(rc={r.returncode}, stderr={r.stderr[:200]!r})")
 
     def write_list(fh, name, items):
@@ -323,26 +324,37 @@ def write_bridge(repo, target, out_dir, gn, ninja):
             fh.write("  " + cmake_quote(it) + "\n")
         fh.write(")\n\n")
 
+    def write_if_changed(path, content):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                if fh.read() == content:
+                    return
+        except FileNotFoundError:
+            pass
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(content)
+
     build_dir = os.path.join(repo, "build")
     os.makedirs(build_dir, exist_ok=True)
-    with open(os.path.join(build_dir, "liew_flags.cmake"), "w",
-              encoding="utf-8", newline="\n") as fh:
-        fh.write("# Generated by scripts/build.py bridge - do not edit.\n\n")
-        write_list(fh, "LIEW_CXX_INCLUDES", incs)
-        write_list(fh, "LIEW_CXX_SYSTEM_INCLUDES", sys_incs)
-        write_list(fh, "LIEW_CXX_OPTIONS", opts)
+    flags = io.StringIO()
+    flags.write("# Generated by scripts/build.py bridge - do not edit.\n\n")
+    write_list(flags, "LIEW_CXX_INCLUDES", incs)
+    write_list(flags, "LIEW_CXX_SYSTEM_INCLUDES", sys_incs)
+    write_list(flags, "LIEW_CXX_OPTIONS", opts)
+    write_if_changed(os.path.join(build_dir, "liew_flags.cmake"),
+                     flags.getvalue())
     rsp_path = os.path.join(build_dir, "liew_link.rsp")
-    with open(rsp_path, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(link_inputs) + "\n")
-    with open(os.path.join(build_dir, "liew_link.cmake"), "w",
-              encoding="utf-8", newline="\n") as fh:
-        fh.write("# Generated by scripts/build.py bridge - do not edit.\n")
-        fh.write("# Closure lives in liew_link.rsp (host main.obj excluded).\n\n")
-        fh.write(f'set(LIEW_LINK_RSP "{rsp_path.replace(os.sep, "/")}")\n\n')
-        write_list(fh, "LIEW_LINK_SYSTEM_LIBS", syslibs)
-        write_list(fh, "LIEW_LINK_LIBPATHS",
-                   [f"-libpath:{p}" for p in libpaths])
-        write_list(fh, "LIEW_LINK_DEFAULTLIBS", defaultlibs)
+    write_if_changed(rsp_path, "\n".join(link_inputs) + "\n")
+    link = io.StringIO()
+    link.write("# Generated by scripts/build.py bridge - do not edit.\n")
+    link.write("# Closure lives in liew_link.rsp (host main.obj excluded).\n\n")
+    link.write(f'set(LIEW_LINK_RSP "{rsp_path.replace(os.sep, "/")}")\n\n')
+    write_list(link, "LIEW_LINK_SYSTEM_LIBS", syslibs)
+    write_list(link, "LIEW_LINK_LIBPATHS",
+               [f"-libpath:{p}" for p in libpaths])
+    write_list(link, "LIEW_LINK_DEFAULTLIBS", defaultlibs)
+    write_if_changed(os.path.join(build_dir, "liew_link.cmake"),
+                     link.getvalue())
     info(f"bridge done: {len(incs)}+{len(sys_incs)} includes, {len(opts)} "
          f"options, {len(link_inputs)} link inputs (rsp), {len(syslibs)} "
          f"system libs, {len(libpaths)} libpaths")
@@ -421,8 +433,13 @@ def main():
                 f"{r.stdout.strip()}")
         rustc_version = f"{m.group(1)}-{m.group(2)}"
 
-    ninja = probe_tool("ninja", hint="winget install Ninja.Ninja "
-                                     "(depot_tools shims don't count)")
+    # On Windows, asking shutil.which() for bare "ninja" may select
+    # depot_tools/ninja.bat. Its Python/caffeinate wrapper can hang while
+    # launching a real build even though read-only `-t` commands work. Require
+    # the native executable so the build process and its output are direct.
+    ninja = probe_tool("ninja.exe" if IS_WIN else "ninja",
+                       hint="winget install Ninja.Ninja "
+                            "(depot_tools shims don't count)")
     info(f"toolchain: ninja = {ninja} "
          f"({run([ninja, '--version']).stdout.strip()})")
     info(f"toolchain: clang = {clang_base} / rust = {rustc_version} "
@@ -557,10 +574,14 @@ def main():
                 stale = os.path.join(deploy, stem + ext)
                 if os.path.isfile(stale):
                     os.remove(stale)
+        for name in ("ui_test.pak", "ui_resources_100_percent.pak"):
+            stale = os.path.join(deploy, name)
+            if os.path.isfile(stale):
+                os.remove(stale)
         shutil.copy2(liew_dll, deploy)
         shutil.copy2(smoke, deploy)
         files = ["libEGL.dll", "libGLESv2.dll", "d3dcompiler_47.dll",
-                 "icudtl.dat", "ui_test.pak", "ui_resources_100_percent.pak"]
+                 "icudtl.dat", "liew_resources.pak"]
         for f in files:
             src = os.path.join(rdir, f)
             if os.path.isfile(src):

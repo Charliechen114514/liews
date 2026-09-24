@@ -1,6 +1,9 @@
 # Monolithic DLL façade: GN stays static, but its complete closure is absorbed
 # here once so every consumer links only the small import library.
-add_library(liew SHARED app.cc)
+add_library(liew SHARED
+  app.cc
+  compositor_runtime.cc
+  direct_layer_tree_frame_sink.cc)
 add_dependencies(liew liew-tree)  # gen/ headers and bridge inputs must exist
 
 # PUBLIC: host exes share the same recipe; the repo root resolves "liew/*.h"

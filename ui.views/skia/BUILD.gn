@@ -303,7 +303,9 @@ component("skia") {
     sources += [ "ext/skia_utils_win.cc" ]
   }
 
-  if (use_blink) {
+  # Viz's Windows software output fallback is linked into the service even
+  # when GPU compositing is selected at runtime.
+  if (use_blink || is_win) {
     public += [ "ext/platform_canvas.h" ]
     sources += [ "ext/platform_canvas.cc" ]
   }

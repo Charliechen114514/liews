@@ -4,6 +4,43 @@
 
 import("//build/config/ui.gni")
 
+source_set("context_provider") {
+  public = [
+    "command_buffer_metrics.h",
+    "context_provider_command_buffer.h",
+  ]
+
+  sources = [
+    "command_buffer_metrics.cc",
+    "context_provider_command_buffer.cc",
+  ]
+
+  public_deps = [
+    "//cc",
+    "//gpu/command_buffer/common",
+    "//gpu/ipc/client",
+    "//gpu/ipc/common",
+    "//services/viz/public/mojom",
+    "//url",
+  ]
+
+  deps = [
+    "//base",
+    "//gpu/command_buffer/client",
+    "//gpu/command_buffer/client:gles2_cmd_helper",
+    "//gpu/command_buffer/client:gles2_implementation",
+    "//gpu/command_buffer/client:raster",
+    "//gpu/command_buffer/client:raster_interface",
+    "//gpu/command_buffer/common:raster",
+    "//gpu/config",
+    "//mojo/public/cpp/system",
+    "//services/service_manager/public/cpp",
+    "//services/viz/public/mojom",
+    "//skia:buildflags",
+    "//ui/gl",
+  ]
+}
+
 source_set("gpu") {
   public = [
     "command_buffer_metrics.h",
@@ -42,4 +79,3 @@ source_set("gpu") {
     "//ui/gl",
   ]
 }
-
