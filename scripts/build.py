@@ -291,7 +291,7 @@ def write_bridge(repo, target, out_dir, gn, ninja):
         lib = line.strip()
         if not lib:
             continue
-        if lib.startswith("/C:"):  # clang_rt etc. as "/C:/..." absolute paths
+        if re.match(r'^/[A-Za-z]:[/\\]', lib):  # clang_rt as "/<drive>:/..."
             lib = lib[1:].replace("\\", "/")
         syslibs.append(lib)
 
@@ -312,7 +312,10 @@ def write_bridge(repo, target, out_dir, gn, ninja):
             found += [t[len("-libpath:"):] for t in ln.split()
                       if t.startswith("-libpath:")]
             if found:  # a bare prefix-matching line carries no libpaths
-                libpaths = found
+                # GN-relative dirs ("../../../llvm/...") resolve against the
+                # tree's out dir; rebase or they dangle under CMake's build/.
+                libpaths = [p if os.path.isabs(p) else abs_posix(p)
+                            for p in found]
                 break
     if not libpaths:
         die(f"bridge: no -libpath in liew_link_recipe link command "
