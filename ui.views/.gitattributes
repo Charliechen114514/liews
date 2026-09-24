@@ -1,0 +1,11 @@
+# Force LF: chromium generators read these inputs as raw bytes and
+# fatally reject CRLF (transport_security_state_generator).
+net/http/transport_security_state_static* text eol=lf
+
+# Go toolchain/config files break with CRLF: go.env ships GOTOOLCHAIN=auto
+# (go: invalid GOTOOLCHAIN "auto\r"), go.mod/go.sum fail module parsing.
+go.env text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+go.work text eol=lf
+go.work.sum text eol=lf
