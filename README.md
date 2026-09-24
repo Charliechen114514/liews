@@ -66,10 +66,6 @@ target_link_libraries(myapp PRIVATE liew::liew)
 liew_copy_runtime_assets(myapp)                # POST_BUILD 拷树内运行期资源（dll/pak/icudtl）
 ```
 
-工具链要求：仓库本体使用 clang-cl + Ninja（`cmake -G Ninja -DCMAKE_CXX_COMPILER=clang-cl`）。包在 `find_package` 时 fail-fast：SDK 未构建（缺 `liew.dll`/`liew.lib`）、编译器或 CRT 不匹配都会直接给出修法。约 5000 个 GN 输入只由仓库本体直连 lld-link；外部 consumer 不再接触响应文件或改写自己的链接规则。`examples/` 即以相同的动态库方式自举消费。
-
-自本节起，构建输出由旧位置 `ui.views/out/Release` 迁至仓库根 `build/Release`；旧 `ui.views/out/` 可手动删除腾空间。
-
 ### Advanced
 
 如果您对仓库拖着2.4G的源码依赖极端不满，且恰好本地有 Chromium 源码树时，可以单独下载 patches + scripts/ 下脚本，您自行对您的 Chromium 树进行裁剪。笔者采集的commit是3649926a0bb43e258427a6d50c174fcaa4e339ae，您可以自行checkout到153版本，或者请自己的LLM对着patches + scripts/下的裁剪方式进行定制。方案如下：
@@ -89,13 +85,6 @@ python scripts\select.py --src <chromium src> --repo <新树目录> --root-outpu
 # 构建新树，如果您愿意，此时自己的源chrominum树就可以git reset --hard 到自己其他的commit上了:)
 python scripts\build.py build --target <新树目录>
 ```
-
-## 已知事项
-
-- clang 安装路径含空格（如默认 `C:\Program Files\LLVM`）时，构建系统多数
-  发射点已做引号处理，但 rust 侧个别路径仍可能被劈——**建议装到无空格路径**
-- `ui.views/third_party/llvm-build` 是指向 clang 工具链的 junction（资源
-  编译脚本按固定相对路径找 clang），由 `build.py` 自动创建与自愈，不入库
 
 ## 许可
 
