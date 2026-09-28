@@ -23,7 +23,10 @@ DerivePointerAlignment: false
 
 # 函数声明: 返回类型和函数名在同一行
 AlwaysBreakAfterReturnType: None
-AlwaysBreakTemplateDeclarations: No
+# 模板声明强制换行: template<...> 单独一行,struct/class/函数另起一行
+# (实测 clang-format 23.1.1 仍接受此废弃键;若未来版本失效,无等价的
+#  BreakTemplateDeclarations 替代值,届时需靠 ColumnLimit 触发断行)
+AlwaysBreakTemplateDeclarations: Yes
 
 # 结构体初始化: 按位置赋值
 # C++11UnifiedBraceList: false 使用传统风格

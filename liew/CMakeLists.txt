@@ -1,10 +1,22 @@
 # Monolithic DLL façade: GN stays static, but its complete closure is absorbed
 # here once so every consumer links only the small import library.
 add_library(liew SHARED
-  app.cc
-  compositor_runtime.cc
-  direct_layer_tree_frame_sink.cc)
-add_dependencies(liew liew-tree)  # gen/ headers and bridge inputs must exist
+  app/app.cc
+  app/liew_app_config_builder.cpp
+  chrome_private/app/application_impl.cpp
+  chrome_private/app/window.cpp
+  chrome_private/app/window_manager.cpp
+  chrome_private/render/compositor_runtime.cc
+  chrome_private/render/direct_layer_tree_frame_sink.cc
+  chrome_private/runtime/discardable_memory.cpp
+  chrome_private/runtime/process_runtime.cpp
+  chrome_private/runtime/task_runtime.cpp
+  chrome_private/ui/accessibility_platform.cpp
+  chrome_private/ui/liew_views_delegate.cpp
+  chrome_private/ui/ui_toolkit.cpp
+)
+
+add_dependencies(liew liew-tree) # gen/ headers and bridge inputs must exist
 
 # PUBLIC: host exes share the same recipe; the repo root resolves "liew/*.h"
 # where the GN tree used a junction.
