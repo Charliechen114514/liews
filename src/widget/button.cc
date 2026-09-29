@@ -60,9 +60,9 @@ const char16_t* Button::GetText() const {
     return static_cast<Button::Impl*>(impl_)->text.c_str();
 }
 
-void Button::SetCallback(ButtonCallback callback) {
+void Button::SetCallback(const ButtonCallback& callback) {
     auto* impl = static_cast<Button::Impl*>(impl_);
-    impl->on_click = std::move(callback.on_click);
+    impl->on_click = callback.on_click;
     impl->button()->SetCallback(base::BindRepeating(
         [](std::function<void()>* click) {
             if (*click)

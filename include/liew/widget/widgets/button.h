@@ -20,7 +20,7 @@ class LIEW_API Button : public Widget {
     void SetText(const char16_t* text);
     const char16_t* GetText() const;
 
-    void SetCallback(ButtonCallback callback);
+    void SetCallback(const ButtonCallback& callback);
 
     void SetStyle(ButtonStyle style);
 

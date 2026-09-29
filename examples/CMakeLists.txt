@@ -8,3 +8,8 @@ add_executable(liew-smoke liew_smoke/liew_smoke_main.cc)
 add_dependencies(liew-smoke liew)
 target_link_libraries(liew-smoke PRIVATE liew::liew)
 liew_copy_runtime_assets(liew-smoke)
+
+add_executable(liew-gallery liew_gallery/gallery_main.cc)
+add_dependencies(liew-gallery liew)
+target_link_libraries(liew-gallery PRIVATE liew::liew)
+liew_copy_runtime_assets(liew-gallery)

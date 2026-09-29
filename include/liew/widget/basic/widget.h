@@ -23,6 +23,14 @@ class LIEW_API Widget {
         return raw;
     }
 
+    void ClearChildren();
+
+    // 空指针/空串 = 显式声明"永无障碍名"(可聚焦控件的读屏检查合规)。
+    void SetAccessibleName(const char16_t* name);
+
+    // 关闭本控件所在的顶层窗口(对话框/主窗皆适用)。
+    void CloseWindow();
+
     void SetLayout(FilledLayout layout);
     void SetLayout(BoxLayout layout);
 

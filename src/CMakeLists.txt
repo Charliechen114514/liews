@@ -3,6 +3,7 @@
 add_library(liew SHARED
   app/app.cc
   app/liew_app_config_builder.cpp
+  cxx_support.cc
   chrome_private/app/application_impl.cpp
   chrome_private/app/window.cpp
   chrome_private/app/window_manager.cpp
@@ -15,7 +16,19 @@ add_library(liew SHARED
   chrome_private/ui/liew_views_delegate.cpp
   chrome_private/ui/ui_toolkit.cpp
   widget/button.cc
+  widget/checkbox.cc
+  widget/combobox.cc
+  widget/label.cc
+  widget/progress_bar.cc
+  widget/radio_button.cc
+  widget/scroll_view.cc
+  widget/slider.cc
+  widget/text_field.cc
+  widget/toggle_button.cc
+  widget/tabbed_pane.cc
   widget/widget.cc
+  window/dialog.cc
+  window/menu.cc
 )
 
 add_dependencies(liew liew-tree) # gen/ headers and bridge inputs must exist
@@ -48,7 +61,13 @@ target_compile_definitions(liew PUBLIC
 
 # The GN closure is private implementation of liew.dll. Consumers receive only
 # liew.lib through the imported SDK target and never expand this response file.
+# Export libc++ support symbols that consumer TUs reference: our definition
+# (verbose_abort) plus libc++-provided ones already in the closure
+# (bad_function_call), which otherwise stay unexported inside liew.dll.
 target_link_options(liew PRIVATE
+  "/EXPORT:?__libcpp_verbose_abort@__Cr@std@@YAXPEBDZZ"
+  "/EXPORT:??1bad_function_call@__Cr@std@@UEAA@XZ"
+  "/EXPORT:?what@bad_function_call@__Cr@std@@UEBAPEBDXZ"
   "/DEBUG"
   "@${LIEW_LINK_RSP}" ${LIEW_LINK_LIBPATHS} ${LIEW_LINK_DEFAULTLIBS})
 target_link_libraries(liew PRIVATE ${LIEW_LINK_SYSTEM_LIBS})
