@@ -107,6 +107,6 @@ add_custom_target(liew-deploy ALL
   USES_TERMINAL VERBATIM)
 add_dependencies(liew-deploy liew-compdb)
 
-add_subdirectory(liew)
+add_subdirectory(src)
 add_subdirectory(examples)
 add_dependencies(liew-deploy liew-smoke)
